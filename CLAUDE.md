@@ -2,6 +2,11 @@
 
 Jeu de bluff multi-écran (le « jeu du dictionnaire »), en français. Site statique sans framework ni bundler : Preact et htm en UMD, synchronisation entre téléphones par Supabase (Postgres et Realtime), hébergement Vercel. Les joueurs n’ont pas de compte : un identifiant aléatoire par téléphone (localStorage), un pseudo, un code de partie de 4 lettres.
 
+## Liens
+
+- GitHub : https://github.com/fedelo-studio/dictionaryx (branche `main`, chaque push déploie sur Vercel)
+- Vercel : https://vercel.com/fedelo-studios-projects/dictionaryx (dossier lié par `vercel link`, voir `.vercel/`)
+
 ## Commandes
 
 - `npm install`
