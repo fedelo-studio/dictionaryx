@@ -1,0 +1,20 @@
+{
+  "name": "dictionaryx",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dictionaryx, le jeu du dictionnaire multi-écran.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && node scripts/dev.mjs",
+    "test": "node test/logic.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.3",
+    "htm": "3.1.1",
+    "preact": "10.24.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
