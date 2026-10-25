@@ -5,7 +5,8 @@ Jeu de bluff multi-écran (le « jeu du dictionnaire »), en français. Site sta
 ## Liens
 
 - GitHub : https://github.com/fedelo-studio/dictionaryx (branche `main`, chaque push déploie sur Vercel)
-- Vercel : https://vercel.com/fedelo-studios-projects/dictionaryx (dossier lié par `vercel link`, voir `.vercel/`)
+- Vercel : https://vercel.com/fedelo-studios-projects/dictionaryx (dossier lié par `vercel link`, voir `.vercel/`). Production : https://dictionaryx-nine.vercel.app
+- Supabase : projet `dictionaryx` (ref `lcgxeukwsatdooulveeo`, région eu-west-3, organisation fedelo.studio), migration appliquée. `SUPABASE_URL` et `SUPABASE_ANON_KEY` (clé publishable) sont définies sur Vercel pour Production, Preview et Development, et dans `.env` en local.
 
 ## Commandes
 

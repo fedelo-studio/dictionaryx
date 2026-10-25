@@ -3,7 +3,7 @@
 Le jeu du dictionnaire, chacun sur son téléphone. Un mot rare tombe sur tous les écrans, chacun invente une fausse définition crédible, puis tout le monde vote pour celle qu’il croit vraie.
 
 - Pas de compte : un pseudo suffit.
-- Chaque partie a un code de 4 lettres et un lien direct, par exemple `dictionaryx.vercel.app/ZABL`.
+- Chaque partie a un code de 4 lettres et un lien direct, par exemple `dictionaryx-nine.vercel.app/ZABL`.
 - Deux modes : une banque de 130 mots rares avec leur phonétique, ou « vrai dictionnaire », où un meneur différent à chaque manche choisit un mot dans un dictionnaire et recopie sa définition.
 - Points : +2 si tu trouves la vraie définition, +1 pour chaque joueur qui mord à ton bluff, +3 pour le meneur si personne ne trouve.
 
