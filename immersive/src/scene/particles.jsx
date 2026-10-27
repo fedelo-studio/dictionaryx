@@ -1,7 +1,8 @@
 // Every shape of the table is made of light: soft round points, added to each other, moved on the GPU.
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Text } from '@react-three/drei'
 
 const HOT = new THREE.Color('#ff6a3a')
 const FG = new THREE.Color('#f5f5f2')
@@ -77,6 +78,7 @@ attribute vec3 aColor;
 uniform float uTime, uStart, uDur, uPixel, uSize, uCalm;
 uniform vec3 uMouse;
 uniform float uPush;
+uniform float uSettle;
 varying vec3 vColor;
 varying float vAlpha;
 void main() {
@@ -97,7 +99,8 @@ void main() {
   gl_Position = projectionMatrix * mv;
   gl_PointSize = uSize * aRand.y * uPixel * (10.0 / -mv.z);
   vColor = aColor * (1.0 + travel * 0.6);
-  vAlpha = 0.55 + 0.45 * (1.0 - travel);
+  // once the word has landed, the real letters take over and the cloud stays only as a glow round them
+  vAlpha = (0.55 + 0.45 * (1.0 - travel)) * (1.0 - uSettle * 0.86);
 }`
 
 // Where the particles of a text go: the text drawn on a hidden canvas, its lit pixels sampled.
@@ -137,7 +140,7 @@ function sampleText(text, hotFrom, width, count) {
       if (px[i + 3] > 140) lit.push([x, y, px[i + 1] < 100 ? 1 : 0])
     }
   }
-  const scale = width / (total || 1) * (W / W)
+  const scale = width / (total || 1)
   const out = new Float32Array(count * 3)
   const hot = new Uint8Array(count)
   for (let k = 0; k < count; k++) {
@@ -147,7 +150,9 @@ function sampleText(text, hotFrom, width, count) {
     out[k * 3 + 2] = (Math.random() - 0.5) * 0.08
     hot[k] = s[2]
   }
-  return { pos: out, hot }
+  // the same text set in type, where the particles drew it
+  const type = { head, tail, size: size * scale, x: -(total / 2) * scale, tailX: (headW - total / 2) * scale }
+  return { pos: out, hot, type }
 }
 
 function nebula(count, spread = 1) {
@@ -164,7 +169,11 @@ function nebula(count, spread = 1) {
 }
 
 /** The word in play. A new word gathers out of the previous one; no word is a slow nebula. */
-export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm }) {
+export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font, calm }) {
+  const [type, setType] = useState(null)
+  const settle = useRef(0)
+  const head = useRef()
+  const tail = useRef()
   const count = useMemo(() => (isPhone() ? 9000 : 16000), [])
   const { camera, pointer } = useThree()
   const state = useRef({ start: 0, from: null, to: null, rand: null, ready: false })
@@ -199,6 +208,7 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm
         uCalm: { value: calm ? 1 : 0 },
         uMouse: { value: new THREE.Vector3(99, 99, 0) },
         uPush: { value: 0 },
+        uSettle: { value: 0 },
       }),
     [],
   )
@@ -211,6 +221,10 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm
       try { await document.fonts.load('500 120px Strawford') } catch { /* system font then */ }
       if (cancelled) return
       const s = state.current
+      // the type goes at once: the particles, still in its shape, carry the change
+      s.ready = false
+      settle.current = 0
+      mat.uniforms.uSettle.value = 0
       const fromA = geo.getAttribute('aFrom')
       const toA = geo.getAttribute('aTo')
       const colA = geo.getAttribute('aColor')
@@ -237,6 +251,7 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm
       toA.needsUpdate = true
       colA.needsUpdate = true
       mat.uniforms.uStart.value = t
+      setType(text ? target.type : null)
       s.ready = true
     }
     go()
@@ -247,7 +262,13 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm
   const ray = useMemo(() => new THREE.Raycaster(), [])
   const hit = useMemo(() => new THREE.Vector3(), [])
   useFrame((st, dt) => {
-    mat.uniforms.uTime.value += dt
+    const u = mat.uniforms
+    u.uTime.value += dt
+    // the last particles land about 2.8 s after the start: the type fades in as they do
+    const landed = state.current.ready && text && u.uTime.value - u.uStart.value > 0.9 + u.uDur.value * 0.8
+    settle.current = THREE.MathUtils.damp(settle.current, landed ? 1 : 0, 2.6, dt)
+    u.uSettle.value = settle.current
+    for (const r of [head, tail]) if (r.current) r.current.fillOpacity = settle.current
     const g = group.current
     g.position.y = THREE.MathUtils.damp(g.position.y, y, 3, dt)
     g.position.z = THREE.MathUtils.damp(g.position.z, z, 3, dt)
@@ -262,6 +283,18 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm
   return (
     <group ref={group} position={[0, y, z]}>
       <points geometry={geo} material={mat} frustumCulled={false} />
+      {type ? (
+        <>
+          <Text ref={head} font={font} fontSize={type.size} anchorX="left" anchorY="middle" position={[type.x, 0, 0.02]} color="#f5f5f2" fillOpacity={0} renderOrder={2}>
+            {type.head}
+          </Text>
+          {type.tail ? (
+            <Text ref={tail} font={font} fontSize={type.size} anchorX="left" anchorY="middle" position={[type.tailX, 0, 0.02]} color="#ff4a1c" fillOpacity={0} renderOrder={2}>
+              {type.tail}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
     </group>
   )
 }
@@ -355,7 +388,8 @@ void main() {
   vec3 pos = mix(orb, ring, uRing);
   // scores: the swarm climbs into a column of light
   float h = r * uColumn;
-  vec3 col = vec3(cos(spin * 2.0 + r * 40.0) * 0.16, h - uColumn - 0.15, sin(spin * 2.0 + r * 40.0) * 0.16);
+  // standing on the seat, from the swarm's foot up
+  vec3 col = vec3(cos(spin * 2.0 + r * 40.0) * 0.16, h - 0.5, sin(spin * 2.0 + r * 40.0) * 0.16);
   pos = mix(pos, col, step(0.001, uColumn) * clamp(uColumn * 4.0, 0.0, 1.0));
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
@@ -365,6 +399,7 @@ void main() {
 }`
 
 export function Swarm({ color, agitate = 0, ready = 0, column = 0, me, calm }) {
+  const core = useRef()
   const count = isPhone() ? 420 : 640
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -403,12 +438,14 @@ export function Swarm({ color, agitate = 0, ready = 0, column = 0, me, calm }) {
     u.uAgitate.value = THREE.MathUtils.damp(u.uAgitate.value, agitate, 4, dt)
     u.uRing.value = THREE.MathUtils.damp(u.uRing.value, ready, 3, dt)
     u.uColumn.value = THREE.MathUtils.damp(u.uColumn.value, column, 2.2, dt)
+    // the core rides on top of the column
+    core.current.position.y = (u.uColumn.value - 0.5) * THREE.MathUtils.clamp(u.uColumn.value * 4, 0, 1)
   })
   return (
     <group>
       <points geometry={geo} material={mat} frustumCulled={false} />
       {/* the core: white, or the studio's orange for you */}
-      <mesh>
+      <mesh ref={core}>
         <sphereGeometry args={[me ? 0.07 : 0.05, 16, 16]} />
         <meshBasicMaterial color={me ? '#ff4a1c' : '#ffffff'} toneMapped={false} />
       </mesh>

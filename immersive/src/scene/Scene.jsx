@@ -26,30 +26,79 @@ const SHOTS = {
   cards: { pos: [0, 2.3, 6.4], look: [0, 1.8, 0.6] },
   scores: { pos: [0, 3.9, 8.8], look: [0, 1.7, -0.6] },
 }
-function Rig({ shot, calm }) {
+const PANEL = 452 // the panel's width plus its right margin on a wide screen (styles.css)
+const wideScreen = size => size.width >= 960
+
+// Where the camera goes for a shot. Rows: the players sit on two rows when one would crowd them.
+function shotPose(shot, size, rows = 1) {
+  const s = SHOTS[shot] || SHOTS.home
+  const back = size.width < size.height ? 1 + (size.height / size.width - 1) * 0.55 : 1
+  const wide = wideScreen(size)
+  return {
+    pos: [s.pos[0], s.pos[1] * (0.9 + back * 0.1), s.pos[2] * back],
+    look: s.look,
+    // the table centred in the free part of the screen: left of the panel on a wide screen, above it upright
+    ox: wide ? PANEL / 2 : 0,
+    oy: !wide && size.width < size.height ? size.height * (rows > 1 ? 0.27 : 0.2) : 0,
+  }
+}
+
+/**
+ * The free part of the screen, seen from where the camera is going: how wide the table may be at a point,
+ * where a point lands on screen, and which point of a plane lies under a pixel.
+ */
+function makeRoom(shot, size, rows, camera) {
+  const p = shotPose(shot, size, rows)
+  const cam = camera.clone()
+  cam.position.set(...p.pos)
+  cam.lookAt(...p.look)
+  cam.setViewOffset(size.width, size.height, p.ox, p.oy, size.width, size.height)
+  cam.updateMatrixWorld()
+  const wide = wideScreen(size)
+  // below the top bar; left of the panel on a wide screen, above it on a phone
+  const free = { left: 20, right: wide ? size.width - PANEL - 20 : size.width - 20, top: 84, bottom: wide ? size.height - 36 : size.height * 0.37 }
+  const ray = new THREE.Raycaster()
+  const v = new THREE.Vector3()
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
+  const under = (px, py, z) => {
+    plane.constant = -z
+    ray.setFromCamera({ x: (px / size.width) * 2 - 1, y: 1 - (py / size.height) * 2 }, cam)
+    return ray.ray.intersectPlane(plane, new THREE.Vector3())
+  }
+  const toPx = (x, y, z) => {
+    v.set(x, y, z).project(cam)
+    return [((v.x + 1) / 2) * size.width, ((1 - v.y) / 2) * size.height]
+  }
+  const half = (y, z) => {
+    const py = toPx(0, y, z)[1]
+    const l = under(free.left, py, z)
+    const r = under(free.right, py, z)
+    return Math.max(0.4, Math.min(l ? -l.x : 0, r ? r.x : 0))
+  }
+  return { free, under, toPx, half }
+}
+
+function Rig({ shot, rows, calm }) {
   const look = useRef(new THREE.Vector3(...SHOTS.home.look))
   const offset = useRef({ x: 0, y: 0 })
   const { size } = useThree()
   useFrame((state, dt) => {
-    const s = SHOTS[shot] || SHOTS.home
-    const back = size.width < size.height ? 1 + (size.height / size.width - 1) * 0.55 : 1
+    const p = shotPose(shot, size, rows)
     const t = state.clock.elapsedTime
-    // a slow breath of the camera, and the pointer's parallax
-    const drift = calm ? 0 : Math.sin(t * 0.12) * 0.35
-    const px = calm ? 0 : state.pointer.x * 0.5
-    const py = calm ? 0 : state.pointer.y * 0.3
+    // a slow breath of the camera, and the pointer's parallax: small, so nothing slides off the edge
+    const drift = calm ? 0 : Math.sin(t * 0.12) * 0.18
+    const px = calm ? 0 : state.pointer.x * 0.25
+    const py = calm ? 0 : state.pointer.y * 0.2
     const cam = state.camera
-    cam.position.x = damp(cam.position.x, s.pos[0] + px + drift, 2, dt)
-    cam.position.y = damp(cam.position.y, s.pos[1] * (0.9 + back * 0.1) + py, 2, dt)
-    cam.position.z = damp(cam.position.z, s.pos[2] * back, 2, dt)
-    look.current.x = damp(look.current.x, s.look[0], 2.4, dt)
-    look.current.y = damp(look.current.y, s.look[1], 2.4, dt)
-    look.current.z = damp(look.current.z, s.look[2], 2.4, dt)
+    cam.position.x = damp(cam.position.x, p.pos[0] + px + drift, 2, dt)
+    cam.position.y = damp(cam.position.y, p.pos[1] + py, 2, dt)
+    cam.position.z = damp(cam.position.z, p.pos[2], 2, dt)
+    look.current.x = damp(look.current.x, p.look[0], 2.4, dt)
+    look.current.y = damp(look.current.y, p.look[1], 2.4, dt)
+    look.current.z = damp(look.current.z, p.look[2], 2.4, dt)
     cam.lookAt(look.current)
-    // keep the table clear of the panel: left of it on a wide screen, above it on a phone held upright
-    const wide = size.width >= 960
-    offset.current.x = damp(offset.current.x, wide ? Math.min(280, size.width * 0.18) : 0, 3, dt)
-    offset.current.y = damp(offset.current.y, !wide && size.width < size.height ? size.height * 0.2 : 0, 3, dt)
+    offset.current.x = damp(offset.current.x, p.ox, 3, dt)
+    offset.current.y = damp(offset.current.y, p.oy, 3, dt)
     cam.setViewOffset(size.width, size.height, offset.current.x, offset.current.y, size.width, size.height)
   })
   return null
@@ -118,32 +167,87 @@ function Caption({ text, y, z }) {
 }
 
 /* ---------- players round the table ---------- */
-function seatPositions(n, narrow) {
-  const rx = narrow ? 1.5 : 2.75
-  const out = []
-  for (let i = 0; i < n; i++) {
-    const a = n === 1 ? -Math.PI / 2 : THREE.MathUtils.lerp(-Math.PI * 0.92, -Math.PI * 0.08, i / (n - 1))
-    out.push([Math.cos(a) * rx, 0.55, Math.sin(a) * (narrow ? 1.6 : 2.4) - 0.2])
+const GAP = 1.4 // the room a name needs beside its neighbour, in seat units
+const SEAT_UP = 1.15 // the name and the status above the swarm's centre
+const SEAT_H = 1.7 // a whole seat, swarm included
+const DEPTH = [-1.3, -0.3] // the back row and the front row
+
+/**
+ * Where the players sit, laid out on the screen itself: under the word, inside the free part of the screen,
+ * on one row, or on two staggered rows when one would crowd. Short of room, the seats shrink a little.
+ * under: the lowest point of the word and its caption, [y, z]. low: at the bottom of the band, for the scores,
+ * whose columns of light rise into the room left above.
+ */
+function seatLayout(n, roomOf, under, low) {
+  if (!n) return { pos: [], rows: 1, scale: 1, label: 2.4, crowded: false, tall: 2.4 }
+  const plan = rows => {
+    const room = roomOf(rows)
+    const top = Math.max(room.free.top, under ? room.toPx(0, under[0], under[1])[1] + 16 : 0)
+    const band = Math.max(80, room.free.bottom - top)
+    const counts = rows > 1 ? [Math.ceil(n / 2), Math.floor(n / 2)] : [n]
+    const even = rows > 1 && counts[0] === counts[1]
+    let scale = 1
+    let gap = 2.6
+    const rowsOut = counts.map((k, r) => {
+      const z = DEPTH[r]
+      const mid = room.under(room.toPx(0, 0, z)[0], top + band / 2, z) || new THREE.Vector3(0, 0.5, z)
+      const ppw = Math.abs(room.toPx(0, mid.y, z)[1] - room.toPx(0, mid.y + 1, z)[1]) // pixels per unit there
+      scale = Math.min(scale, band / rows / (SEAT_H * ppw))
+      const half = room.half(mid.y, z) - 0.75
+      const span = k - 1 + (even ? 0.5 : 0)
+      if (span > 0) gap = Math.min(gap, (2 * Math.max(0.3, half)) / span)
+      return { k, z, ppw, half }
+    })
+    scale = Math.min(scale, gap / GAP)
+    return { room, top, bottom: room.free.bottom, rowsOut, even, gap, scale }
   }
-  return out
+  let L = plan(1)
+  if (n > 2 && L.scale < 0.82) {
+    const two = plan(2)
+    if (two.scale > L.scale) L = two
+  }
+  const scale = THREE.MathUtils.clamp(L.scale, 0.5, 1)
+  const pos = []
+  const height = L.rowsOut.reduce((h, row) => h + SEAT_H * row.ppw * scale + 6, 0)
+  let y = low ? Math.max(L.top, L.bottom - height) : L.top
+  // the columns rise into the room above the back row, in seat units; on two rows, no higher than a row
+  const tall = THREE.MathUtils.clamp((y - L.top) / (L.rowsOut[0].ppw * scale) + 0.5, 0.6, L.rowsOut.length > 1 ? 1.0 : 2.4)
+  L.rowsOut.forEach((row, r) => {
+    // rows packed from the top of the band, the front row in the gaps of the back one
+    const cy = y + SEAT_UP * row.ppw * scale
+    y += SEAT_H * row.ppw * scale + 6
+    const cx = L.room.toPx(0, 0, row.z)[0]
+    const at = L.room.under(cx, cy, row.z)
+    for (let i = 0; i < row.k; i++) {
+      const x = (i - (row.k - 1) / 2) * L.gap + (L.even ? ((r ? 1 : -1) * L.gap) / 4 : 0)
+      const u = Math.min(1, Math.abs(x) / Math.max(0.5, row.half))
+      pos.push([x, at ? at.y : 0.55, row.z - 0.3 * (1 - u * u)])
+    }
+  })
+  return { pos, rows: L.rowsOut.length, scale, label: Math.min(2.4, (L.gap / scale) * 0.94), crowded: scale < 0.85, tall }
 }
 
-function Seat({ u, pos, S, score, maxScore, showScore, isLead, away, calm }) {
+function Seat({ u, pos, scale, label: labelW, tall, crowded, S, score, maxScore, showScore, isLead, away, calm }) {
   const group = useRef()
   const shown = useRef(away ? 0 : 1)
+  const base = useRef(pos[1])
   const label = useRef()
   const st = statusOf(u, S)
   const me = u === E.rt.me
   const online = E.data.online.has(u)
   const color = isLead ? C.hot : E.avatarOf(u).color
-  const column = showScore ? 0.3 + (maxScore ? score / maxScore : 0) * 2.4 : 0
+  const column = showScore ? 0.3 + (maxScore ? score / maxScore : 0) * tall : 0
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime
-    group.current.position.y = pos[1] + (calm ? 0 : Math.sin(t * 1.2 + pos[0]) * 0.04)
+    const g = group.current
+    g.position.x = damp(g.position.x, pos[0], 3, dt)
+    g.position.z = damp(g.position.z, pos[2], 3, dt)
+    base.current = damp(base.current, pos[1], 3, dt)
+    g.position.y = base.current + (calm ? 0 : Math.sin(t * 1.2 + u.length) * 0.04)
     shown.current = damp(shown.current, away ? 0 : 1, 4, dt)
-    group.current.scale.setScalar(Math.max(0.001, shown.current))
+    g.scale.setScalar(Math.max(0.001, shown.current * scale))
     group.current.visible = shown.current > 0.01
-    label.current.position.y = damp(label.current.position.y, 0.62 + (showScore ? column - 0.2 : 0), 3, dt)
+    label.current.position.y = damp(label.current.position.y, showScore ? column - 0.05 : 0.78, 3, dt)
   })
   const line = showScore
     ? `${score} pt${score > 1 ? 's' : ''}${st && st.c === 'gain' ? '   ' + st.t : ''}`
@@ -151,29 +255,26 @@ function Seat({ u, pos, S, score, maxScore, showScore, isLead, away, calm }) {
   return (
     <group ref={group} position={pos}>
       <Swarm color={online || showScore ? color : '#3a3a38'} agitate={st && st.c === 'typing' ? 1 : 0} ready={st && st.c === 'done' ? 1 : 0} column={column} me={me} calm={calm} />
-      <Billboard ref={label} position={[0, 0.62, 0]}>
-        <Text font={FONT.medium} fontSize={0.27} anchorX="center" anchorY="bottom" color={C.fg} maxWidth={2.4}>
-          {E.nameOf(u)}{me ? ' (toi)' : ''}
+      <Billboard ref={label} position={[0, 0.78, 0]}>
+        <Text font={FONT.medium} fontSize={0.27} anchorX="center" anchorY="bottom" textAlign="center" color={C.fg} maxWidth={labelW}>
+          {E.nameOf(u)}{me && !crowded ? ' (toi)' : ''}
         </Text>
-        <Text font={FONT.medium} fontSize={0.18} letterSpacing={0.04} anchorX="center" anchorY="top" position={[0, -0.05, 0]} color={(st && ['typing', 'lead', 'gain'].includes(st.c)) || isLead ? C.hot : C.dim}>
+        {crowded && !showScore ? null : <Text font={FONT.medium} fontSize={0.18} letterSpacing={0.04} anchorX="center" anchorY="top" position={[0, -0.05, 0]} color={(st && ['typing', 'lead', 'gain'].includes(st.c)) || isLead ? C.hot : C.dim}>
           {line}
-        </Text>
+        </Text>}
       </Billboard>
     </group>
   )
 }
 
-function Seats({ S, showScore, away, calm }) {
+function Seats({ S, layout, showScore, away, calm }) {
   const order = E.seatsOf(E.data.players)
-  const { size } = useThree()
-  const narrow = size.width < size.height
-  const pos = useMemo(() => seatPositions(order.length, narrow), [order.length, narrow])
   const scores = (S && S.scores) || {}
   const goal = (S && S.settings && S.settings.target) || 15
   const max = Math.max(goal, ...order.map(u => scores[u] || 0))
   const top = Math.max(0, ...order.map(u => scores[u] || 0))
   return order.map((u, i) => (
-    <Seat key={u} u={u} pos={pos[i]} S={S} score={scores[u] || 0} maxScore={max} showScore={showScore} isLead={showScore && top > 0 && (scores[u] || 0) === top} away={away} calm={calm} />
+    <Seat key={u} u={u} pos={layout.pos[i] || [0, 0.55, -1.3]} scale={layout.scale} label={layout.label} tall={layout.tall} crowded={layout.crowded} S={S} score={scores[u] || 0} maxScore={max} showScore={showScore} isLead={showScore && top > 0 && (scores[u] || 0) === top} away={away} calm={calm} />
   ))
 }
 
@@ -193,7 +294,7 @@ void main() {
   float glow = exp(-max(d, 0.0) * 16.0) * uGlow * step(0.0, d);
   float sheen = smoothstep(0.0, 1.0, 1.0 - abs(vUv.y - 0.85 + vUv.x * 0.25) * 3.0) * 0.05;
   vec3 face = mix(uFace + sheen, uEdge, edge);
-  float a = max(fill * 0.94, edge);
+  float a = max(fill * 0.98, edge);
   vec3 col = face * a + uEdge * glow;
   gl_FragColor = vec4(col, max(a, glow) * uOpacity);
 }`
@@ -204,7 +305,7 @@ const CARD_HOT = new THREE.Color(C.hot)
 const CARD_FACE = new THREE.Color(C.card)
 const CARD_NEG = new THREE.Color(C.fg)
 
-function Card({ i, focus, card, onFocus, onPick, scale }) {
+function Card({ i, focus, card, onFocus, onPick, scale, reach }) {
   const ref = useRef()
   const [hover, setHover] = useState(false)
   useCursor(hover && (card.clickable || i !== focus))
@@ -234,7 +335,8 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
   )
   useFrame((state, dt) => {
     const g = ref.current
-    const x = d * 2.25 * scale
+    // the neighbours peek in from the sides, never past the edge of the free screen
+    const x = Math.sign(d) * Math.min(Math.abs(d) * 2.25 * scale, reach + (Math.abs(d) - 1) * 0.8)
     const z = 1.5 - Math.min(3, Math.abs(d)) * 1.3
     const y = 1.66 + (front && hover ? 0.05 : 0) + (front ? Math.sin(state.clock.elapsedTime * 1.2) * 0.02 : 0)
     g.position.x = damp(g.position.x, x, 4.5, dt)
@@ -271,22 +373,22 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
       onPointerOver={e => { e.stopPropagation(); setHover(true) }}
       onPointerOut={() => setHover(false)}
     >
-      <mesh material={mat}>
+      <mesh material={mat} renderOrder={front ? 10 : 0}>
         <planeGeometry args={[W + 0.16, H + 0.16]} />
       </mesh>
-      <Text fillOpacity={fade} font={FONT.medium} fontSize={0.13} anchorX="left" anchorY="top" position={[-W / 2 + 0.2, H / 2 - 0.18, 0.01]} color={negative ? '#0b0b0b' : C.hot}>
+      <Text renderOrder={front ? 11 : 1} fillOpacity={fade} font={FONT.medium} fontSize={0.13} anchorX="left" anchorY="top" position={[-W / 2 + 0.2, H / 2 - 0.18, 0.01]} color={negative ? '#0b0b0b' : C.hot}>
         {String(i + 1).padStart(2, '0')}
       </Text>
       {card.tag ? (
-        <Text fillOpacity={fade} font={FONT.medium} fontSize={0.095} letterSpacing={0.08} anchorX="right" anchorY="top" position={[W / 2 - 0.2, H / 2 - 0.195, 0.01]} color={card.tagHot ? C.hot : negative ? '#0b0b0b' : C.dim}>
+        <Text renderOrder={front ? 11 : 1} fillOpacity={fade} font={FONT.medium} fontSize={0.095} letterSpacing={0.08} anchorX="right" anchorY="top" position={[W / 2 - 0.2, H / 2 - 0.195, 0.01]} color={card.tagHot ? C.hot : negative ? '#0b0b0b' : C.dim}>
           {card.tag.toUpperCase()}
         </Text>
       ) : null}
-      <Text fillOpacity={fade} font={FONT.regular} fontSize={fontSize} lineHeight={1.38} maxWidth={W - 0.42} anchorX="left" anchorY="top" position={[-W / 2 + 0.21, H / 2 - 0.46, 0.01]} color={ink}>
+      <Text renderOrder={front ? 11 : 1} fillOpacity={fade} font={FONT.regular} fontSize={fontSize} lineHeight={1.38} maxWidth={W - 0.42} anchorX="left" anchorY="top" position={[-W / 2 + 0.21, H / 2 - 0.46, 0.01]} color={ink}>
         {card.text}
       </Text>
       {card.footer ? (
-        <Text fillOpacity={fade} font={FONT.medium} fontSize={0.105} maxWidth={W - 0.42} anchorX="left" anchorY="bottom" position={[-W / 2 + 0.21, -H / 2 + 0.17, 0.01]} color={card.footerHot ? C.hot : C.dim}>
+        <Text renderOrder={front ? 11 : 1} fillOpacity={fade} font={FONT.medium} fontSize={0.105} maxWidth={W - 0.42} anchorX="left" anchorY="bottom" position={[-W / 2 + 0.21, -H / 2 + 0.17, 0.01]} color={card.footerHot ? C.hot : C.dim}>
           {card.footer}
         </Text>
       ) : null}
@@ -294,29 +396,49 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
   )
 }
 
-function Cards({ cards, focus, onFocus, onPick }) {
+function Cards({ cards, focus, onFocus, onPick, room }) {
   const { size } = useThree()
   const scale = size.width < size.height ? Math.max(0.95, (size.width / size.height) * 1.9) : 1
-  return cards.map((card, i) => <Card key={card.k} i={i} focus={focus} card={card} onFocus={onFocus} onPick={onPick} scale={scale} />)
+  // a neighbour, half turned towards the camera, reaches about 1.35 on each side of its centre
+  const reach = Math.max(0.6, room.half(1.66, 0.2) - 1.35 * scale)
+  return cards.map((card, i) => <Card key={card.k} i={i} focus={focus} card={card} onFocus={onFocus} onPick={onPick} scale={scale} reach={reach} />)
 }
 
 /* ---------- the whole scene ---------- */
 export default function Scene({ view, focus, setFocus, onPick }) {
   const calm = E.reducedMotion()
-  const { size } = useThree()
-  const narrow = size.width < size.height
+  const { size, camera } = useThree()
+  const n = view.seats ? E.seatsOf(E.data.players).length : 0
+  const roomOf = useMemo(() => {
+    const cache = {}
+    return rows => (cache[rows] ||= makeRoom(view.shot, size, rows, camera))
+  }, [view.shot, size.width, size.height, camera])
   const t = view.title
-  const width = t ? (narrow ? t.width * 0.56 : t.width) : 0
+  // the word as wide as the bank asks, never wider than the free part of the screen
+  const width = t ? Math.round(Math.min(t.width, 2 * roomOf(1).half(t.y, t.z) * 0.9) * 100) / 100 : 0
+  const letter = t ? width / (Math.max(4, t.text.length) * 0.56) : 0 // about the height of a capital
+  // and never under the top bar
+  const wordY = useMemo(() => {
+    if (!t) return 0
+    const room = roomOf(1)
+    const top = room.toPx(0, t.y + letter * 0.6, t.z)[1]
+    const ppw = Math.abs(room.toPx(0, t.y, t.z)[1] - room.toPx(0, t.y + 1, t.z)[1])
+    return t.y - Math.max(0, (room.free.top + 8 - top) / ppw)
+  }, [t && t.y, t && t.z, letter, roomOf])
+  const captionY = t ? wordY - letter * 0.42 - 0.22 : 0
+  const bottom = t ? (t.detail ? captionY - 0.3 : wordY - letter * 0.45) : null
+  const layout = useMemo(() => seatLayout(n, roomOf, t ? [bottom, t.z] : null, !!view.showScore), [n, roomOf, bottom, t && t.z, view.showScore])
+  const rows = view.cards ? 1 : layout.rows
   return (
     <>
       <ambientLight intensity={0.6} />
-      <Rig shot={view.shot} calm={calm} />
+      <Rig shot={view.shot} rows={rows} calm={calm} />
       <Galaxy pulseKey={view.key} dim={!!view.cards} calm={calm} />
       <Point y={view.pointY} on={!!view.pointOn} phaseKey={view.key} calm={calm} />
-      <WordCloud text={t ? t.text : ''} hotFrom={t && t.landing ? t.text.length - 1 : -1} y={t ? t.y : 2.2} z={t ? t.z : -1} width={width || 6} calm={calm} />
-      {t && t.detail ? <Caption text={t.detail} y={t.y - (width / (Math.max(4, t.text.length) * 0.56)) * 0.42 - 0.22} z={t.z} /> : null}
-      {view.seats ? <Seats S={view.S} showScore={view.showScore} away={!!view.cards} calm={calm} /> : null}
-      {view.cards ? <Cards cards={view.cards} focus={focus} onFocus={setFocus} onPick={onPick} /> : null}
+      <WordCloud text={t ? t.text : ''} hotFrom={t && t.landing ? t.text.length - 1 : -1} y={t ? wordY : 2.2} z={t ? t.z : -1} width={width || 6} font={FONT.medium} calm={calm} />
+      {t && t.detail ? <Caption text={t.detail} y={captionY} z={t.z} /> : null}
+      {view.seats ? <Seats S={view.S} layout={layout} showScore={view.showScore} away={!!view.cards} calm={calm} /> : null}
+      {view.cards ? <Cards cards={view.cards} focus={focus} onFocus={setFocus} onPick={onPick} room={roomOf(1)} /> : null}
       <Burst fireKey={view.burstKey} position={[0, 1.7, 1.4]} />
     </>
   )
