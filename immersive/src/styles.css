@@ -72,6 +72,9 @@ p { margin: 0; text-wrap: pretty; }
 .help { font-size: 15px; color: var(--fg-dim); }
 .kicker { font-size: 13px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--fg); }
 .quote { padding: 14px 16px; background: rgba(245, 245, 242, .04); border: 1px solid var(--line); border-radius: 16px; font-size: 17px; }
+/* the word's nature and phonetics, while the cards hold the screen */
+.word-line { display: flex; gap: 10px; align-items: baseline; font-size: 15px; color: var(--fg-dim); }
+.ipa-inline { font-family: "Dico IPA", var(--font); font-size: 17px; }
 .ipa { font-family: "Dico IPA", var(--font); font-size: 20px; color: var(--fg-dim); text-align: center; }
 .caret { display: inline-block; width: 2px; height: 1em; margin-left: 3px; vertical-align: -.12em; background: var(--hot); animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }

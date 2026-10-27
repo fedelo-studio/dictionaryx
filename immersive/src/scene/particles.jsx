@@ -270,7 +270,7 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, calm
 const GALAXY_VS = /* glsl */ `
 attribute vec4 aOrbit;  // radius, angle, height, rand
 attribute vec3 aColor;
-uniform float uTime, uPixel, uSize, uPulse, uCalm;
+uniform float uTime, uPixel, uSize, uPulse, uCalm, uDim;
 varying vec3 vColor;
 varying float vAlpha;
 void main() {
@@ -284,10 +284,10 @@ void main() {
   gl_Position = projectionMatrix * mv;
   gl_PointSize = uSize * (0.6 + aOrbit.w) * uPixel * (10.0 / -mv.z) * (1.0 + wave * 1.5);
   vColor = mix(aColor, vec3(1.0, 0.42, 0.2), clamp(wave, 0.0, 1.0));
-  vAlpha = 0.5 + wave * 1.5;
+  vAlpha = (0.5 + wave * 1.5) * uDim;
 }`
 
-export function Galaxy({ pulseKey, calm }) {
+export function Galaxy({ pulseKey, dim, calm }) {
   const count = useMemo(() => (isPhone() ? 5000 : 9000), [])
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -322,11 +322,16 @@ export function Galaxy({ pulseKey, calm }) {
         uSize: { value: isPhone() ? 2.2 : 1.9 },
         uPulse: { value: -99 },
         uCalm: { value: calm ? 1 : 0 },
+        uDim: { value: 1 },
       }),
     [],
   )
   useEffect(() => { mat.uniforms.uPulse.value = mat.uniforms.uTime.value }, [pulseKey])
-  useFrame((_, dt) => { mat.uniforms.uTime.value += dt })
+  useFrame((_, dt) => {
+    mat.uniforms.uTime.value += dt
+    // quieter while the cards are read
+    mat.uniforms.uDim.value = THREE.MathUtils.damp(mat.uniforms.uDim.value, dim ? 0.35 : 1, 3, dt)
+  })
   return <points geometry={geo} material={mat} frustumCulled={false} />
 }
 

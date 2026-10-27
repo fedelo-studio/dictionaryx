@@ -287,6 +287,7 @@ function Vote({ S, view, focus, setFocus }) {
   useArrows(cards.length, focus, setFocus)
   return (
     <>
+      <p className="word-line"><span>{wordOf(S).nat}</span>{wordOf(S).ipa ? <span className="ipa-inline">[{wordOf(S).ipa}]</span> : null}</p>
       <p className="lede">{fr(lead ? 'Les autres cherchent la vraie définition.' : 'Laquelle est la vraie ?')}</p>
       <Deck n={cards.length} focus={focus} setFocus={setFocus} />
       {voter && card ? (

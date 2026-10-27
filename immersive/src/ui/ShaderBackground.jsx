@@ -37,7 +37,9 @@ void main() {
   // a heavier line than the site's 1.2: on a phone, behind a game, the site's hairline disappears
   float pattern = smoothstep(0.06 * 1.7, 0.0, abs(cf - 0.5)) + smoothstep(0.025 * 1.7, 0.0, abs(cf - 0.5)) * 0.5;
   vec3 bg = vec3(0.031);
-  vec3 col = mix(bg, vec3(0.22), pattern * 0.62);
+  // quieter where the word and the cards are read
+  float centre = exp(-dot((uv - vec2(0.42, 0.62)) * vec2(asp, 1.0), (uv - vec2(0.42, 0.62)) * vec2(asp, 1.0)) * 3.0);
+  vec3 col = mix(bg, vec3(0.22), pattern * mix(0.5, 0.18, centre));
   // the lines warm up near the pointer
   col = mix(col, vec3(1.0, 0.29, 0.11), pattern * exp(-md * md * 14.0) * 0.28);
   float ripple = 0.0;

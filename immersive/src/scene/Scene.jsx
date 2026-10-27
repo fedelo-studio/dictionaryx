@@ -72,8 +72,9 @@ function glowTexture() {
   return glowTex
 }
 
-function Point({ y = 4.3, phaseKey, calm }) {
+function Point({ y = 4.3, on = true, phaseKey, calm }) {
   const ref = useRef()
+  const show = useRef(on ? 1 : 0)
   const halo = useRef()
   const flare = useRef({ key: phaseKey, t: 0 })
   useFrame((state, dt) => {
@@ -82,6 +83,9 @@ function Point({ y = 4.3, phaseKey, calm }) {
     const f = flare.current.t
     const t = state.clock.elapsedTime
     ref.current.position.y = damp(ref.current.position.y, y + (calm ? 0 : Math.sin(t * 0.8) * 0.1), 3, dt)
+    show.current = damp(show.current, on ? 1 : 0, 3, dt)
+    ref.current.scale.setScalar(Math.max(0.001, show.current))
+    ref.current.visible = show.current > 0.01
     halo.current.scale.setScalar(0.95 + f * 3 + (calm ? 0 : Math.sin(t * 2) * 0.05))
   })
   return (
@@ -114,17 +118,19 @@ function Caption({ text, y, z }) {
 }
 
 /* ---------- players round the table ---------- */
-function seatPositions(n) {
+function seatPositions(n, narrow) {
+  const rx = narrow ? 1.5 : 2.75
   const out = []
   for (let i = 0; i < n; i++) {
     const a = n === 1 ? -Math.PI / 2 : THREE.MathUtils.lerp(-Math.PI * 0.92, -Math.PI * 0.08, i / (n - 1))
-    out.push([Math.cos(a) * 2.75, 0.55, Math.sin(a) * 2.4 - 0.2])
+    out.push([Math.cos(a) * rx, 0.55, Math.sin(a) * (narrow ? 1.6 : 2.4) - 0.2])
   }
   return out
 }
 
-function Seat({ u, pos, S, score, maxScore, showScore, isLead, calm }) {
+function Seat({ u, pos, S, score, maxScore, showScore, isLead, away, calm }) {
   const group = useRef()
+  const shown = useRef(away ? 0 : 1)
   const label = useRef()
   const st = statusOf(u, S)
   const me = u === E.rt.me
@@ -134,6 +140,9 @@ function Seat({ u, pos, S, score, maxScore, showScore, isLead, calm }) {
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime
     group.current.position.y = pos[1] + (calm ? 0 : Math.sin(t * 1.2 + pos[0]) * 0.04)
+    shown.current = damp(shown.current, away ? 0 : 1, 4, dt)
+    group.current.scale.setScalar(Math.max(0.001, shown.current))
+    group.current.visible = shown.current > 0.01
     label.current.position.y = damp(label.current.position.y, 0.62 + (showScore ? column - 0.2 : 0), 3, dt)
   })
   const line = showScore
@@ -154,15 +163,17 @@ function Seat({ u, pos, S, score, maxScore, showScore, isLead, calm }) {
   )
 }
 
-function Seats({ S, showScore, calm }) {
+function Seats({ S, showScore, away, calm }) {
   const order = E.seatsOf(E.data.players)
-  const pos = useMemo(() => seatPositions(order.length), [order.length])
+  const { size } = useThree()
+  const narrow = size.width < size.height
+  const pos = useMemo(() => seatPositions(order.length, narrow), [order.length, narrow])
   const scores = (S && S.scores) || {}
   const goal = (S && S.settings && S.settings.target) || 15
   const max = Math.max(goal, ...order.map(u => scores[u] || 0))
   const top = Math.max(0, ...order.map(u => scores[u] || 0))
   return order.map((u, i) => (
-    <Seat key={u} u={u} pos={pos[i]} S={S} score={scores[u] || 0} maxScore={max} showScore={showScore} isLead={showScore && top > 0 && (scores[u] || 0) === top} calm={calm} />
+    <Seat key={u} u={u} pos={pos[i]} S={S} score={scores[u] || 0} maxScore={max} showScore={showScore} isLead={showScore && top > 0 && (scores[u] || 0) === top} away={away} calm={calm} />
   ))
 }
 
@@ -223,18 +234,19 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
   )
   useFrame((state, dt) => {
     const g = ref.current
-    const x = d * 1.9 * scale
-    const z = 1.5 - Math.min(3, Math.abs(d)) * 0.9
+    const x = d * 2.25 * scale
+    const z = 1.5 - Math.min(3, Math.abs(d)) * 1.3
     const y = 1.66 + (front && hover ? 0.05 : 0) + (front ? Math.sin(state.clock.elapsedTime * 1.2) * 0.02 : 0)
     g.position.x = damp(g.position.x, x, 4.5, dt)
     g.position.y = damp(g.position.y, y, 4.5, dt)
     g.position.z = damp(g.position.z, z, 4.5, dt)
-    g.rotation.y = damp(g.rotation.y, -d * 0.48, 4.5, dt)
+    g.rotation.y = damp(g.rotation.y, -d * 0.6, 4.5, dt)
     g.rotation.z = damp(g.rotation.z, 0, 4, dt)
     g.scale.setScalar(damp(g.scale.x, (front ? 1 : 0.84) * scale, 4.5, dt))
     const u = mat.uniforms
     const k = 1 - Math.exp(-6 * dt)
-    u.uOpacity.value = damp(u.uOpacity.value, 1, 3, dt)
+    u.uOpacity.value = damp(u.uOpacity.value, front ? 1 : Math.abs(d) === 1 ? 0.3 : 0, 4, dt)
+    g.visible = u.uOpacity.value > 0.02
     u.uFace.value.lerp(negative ? CARD_NEG : CARD_FACE, k)
     u.uEdge.value.lerp(hot || negative ? CARD_HOT : hover ? CARD_HOVER : CARD_GREY, k)
     u.uEdgeW.value = damp(u.uEdgeW.value, hot || negative ? 0.045 : 0.022, 6, dt)
@@ -243,6 +255,7 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
   const long = card.text.length
   const fontSize = long > 220 ? 0.1 : long > 140 ? 0.116 : long > 80 ? 0.134 : 0.155
   const ink = negative ? '#0b0b0b' : card.variant === 'own' || card.variant === 'fake' ? C.dim : C.fg
+  const fade = front ? 1 : Math.abs(d) === 1 ? 0.3 : 0
   return (
     <group
       ref={ref}
@@ -261,19 +274,19 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
       <mesh material={mat}>
         <planeGeometry args={[W + 0.16, H + 0.16]} />
       </mesh>
-      <Text font={FONT.medium} fontSize={0.13} anchorX="left" anchorY="top" position={[-W / 2 + 0.2, H / 2 - 0.18, 0.01]} color={negative ? '#0b0b0b' : C.hot}>
+      <Text fillOpacity={fade} font={FONT.medium} fontSize={0.13} anchorX="left" anchorY="top" position={[-W / 2 + 0.2, H / 2 - 0.18, 0.01]} color={negative ? '#0b0b0b' : C.hot}>
         {String(i + 1).padStart(2, '0')}
       </Text>
       {card.tag ? (
-        <Text font={FONT.medium} fontSize={0.095} letterSpacing={0.08} anchorX="right" anchorY="top" position={[W / 2 - 0.2, H / 2 - 0.195, 0.01]} color={card.tagHot ? C.hot : negative ? '#0b0b0b' : C.dim}>
+        <Text fillOpacity={fade} font={FONT.medium} fontSize={0.095} letterSpacing={0.08} anchorX="right" anchorY="top" position={[W / 2 - 0.2, H / 2 - 0.195, 0.01]} color={card.tagHot ? C.hot : negative ? '#0b0b0b' : C.dim}>
           {card.tag.toUpperCase()}
         </Text>
       ) : null}
-      <Text font={FONT.regular} fontSize={fontSize} lineHeight={1.38} maxWidth={W - 0.42} anchorX="left" anchorY="top" position={[-W / 2 + 0.21, H / 2 - 0.46, 0.01]} color={ink}>
+      <Text fillOpacity={fade} font={FONT.regular} fontSize={fontSize} lineHeight={1.38} maxWidth={W - 0.42} anchorX="left" anchorY="top" position={[-W / 2 + 0.21, H / 2 - 0.46, 0.01]} color={ink}>
         {card.text}
       </Text>
       {card.footer ? (
-        <Text font={FONT.medium} fontSize={0.105} maxWidth={W - 0.42} anchorX="left" anchorY="bottom" position={[-W / 2 + 0.21, -H / 2 + 0.17, 0.01]} color={card.footerHot ? C.hot : C.dim}>
+        <Text fillOpacity={fade} font={FONT.medium} fontSize={0.105} maxWidth={W - 0.42} anchorX="left" anchorY="bottom" position={[-W / 2 + 0.21, -H / 2 + 0.17, 0.01]} color={card.footerHot ? C.hot : C.dim}>
           {card.footer}
         </Text>
       ) : null}
@@ -283,7 +296,7 @@ function Card({ i, focus, card, onFocus, onPick, scale }) {
 
 function Cards({ cards, focus, onFocus, onPick }) {
   const { size } = useThree()
-  const scale = size.width < size.height ? Math.max(0.74, (size.width / size.height) * 1.5) : 1
+  const scale = size.width < size.height ? Math.max(0.95, (size.width / size.height) * 1.9) : 1
   return cards.map((card, i) => <Card key={card.k} i={i} focus={focus} card={card} onFocus={onFocus} onPick={onPick} scale={scale} />)
 }
 
@@ -298,11 +311,11 @@ export default function Scene({ view, focus, setFocus, onPick }) {
     <>
       <ambientLight intensity={0.6} />
       <Rig shot={view.shot} calm={calm} />
-      <Galaxy pulseKey={view.key} calm={calm} />
-      <Point y={view.pointY} phaseKey={view.key} calm={calm} />
+      <Galaxy pulseKey={view.key} dim={!!view.cards} calm={calm} />
+      <Point y={view.pointY} on={!!view.pointOn} phaseKey={view.key} calm={calm} />
       <WordCloud text={t ? t.text : ''} hotFrom={t && t.landing ? t.text.length - 1 : -1} y={t ? t.y : 2.2} z={t ? t.z : -1} width={width || 6} calm={calm} />
       {t && t.detail ? <Caption text={t.detail} y={t.y - (width / (Math.max(4, t.text.length) * 0.56)) * 0.42 - 0.22} z={t.z} /> : null}
-      {view.seats ? <Seats S={view.S} showScore={view.showScore} calm={calm} /> : null}
+      {view.seats ? <Seats S={view.S} showScore={view.showScore} away={!!view.cards} calm={calm} /> : null}
       {view.cards ? <Cards cards={view.cards} focus={focus} onFocus={setFocus} onPick={onPick} /> : null}
       <Burst fireKey={view.burstKey} position={[0, 1.7, 1.4]} />
     </>
