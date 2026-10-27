@@ -23,6 +23,7 @@ Jeu de bluff multi-écran (le « jeu du dictionnaire »), en français. Site sta
 - `src/main.js` : démarrage.
 - `src/styles.css`, `src/index.html`, `public/` (favicon, police phonétique et sa licence).
 - `src/bank.json` : banque de mots. Les définitions sont encodées au build pour ne pas être lisibles dans la source de la page.
+- `immersive/` : la version 3D (Vite, React 18, React Three Fiber 8, drei). Elle ne recopie pas le moteur : `vite.config.js` assemble `src/core.js` et `src/platform-web.js` tels quels, React tenant lieu de Preact, donc mêmes règles et mêmes parties Supabase. `scripts/fonts.mjs` télécharge Strawford (woff2 et woff, le texte 3D ne lit pas le woff2) depuis le Blob privé avant le build. Projet Vercel à part, `dictionaryx-3d`, racine `immersive`. `npm --prefix immersive run dev` sur le port 5175.
 - `supabase/migrations/` : tables `rooms` (état de la partie en jsonb, `version`), `players` (pseudo, `gone` quand un joueur quitte), `subs` (bluff et vote de chaque joueur pour la manche `rk`), politiques RLS, publication Realtime.
 
 ## Déploiement
