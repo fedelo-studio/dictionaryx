@@ -39,4 +39,21 @@ const vendor = {
 };
 for (const [name, from] of Object.entries(vendor)) copyFileSync(root + 'node_modules/' + from, out + 'vendor/' + name);
 
+// Strawford is licensed for this site but must not sit in the public repository: it lives in the
+// project's private Vercel Blob store and is fetched here when public/fonts does not have it.
+const STRAWFORD = ['light', 'regular', 'medium'].map(w => 'strawford-' + w + '-webfont.woff2');
+const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
+for (const file of STRAWFORD) {
+  if (existsSync(root + 'public/fonts/' + file)) continue;
+  if (!blobToken) {
+    if (process.env.VERCEL) throw new Error('Strawford missing: BLOB_READ_WRITE_TOKEN is not set for this deployment');
+    console.warn('Warning: public/fonts/' + file + ' is missing and BLOB_READ_WRITE_TOKEN is not set, the system font will show.');
+    continue;
+  }
+  const store = blobToken.split('_')[3].toLowerCase();
+  const res = await fetch('https://' + store + '.private.blob.vercel-storage.com/fonts/' + file, { headers: { authorization: 'Bearer ' + blobToken } });
+  if (!res.ok) throw new Error('Strawford download failed for ' + file + ': HTTP ' + res.status);
+  writeFileSync(out + 'fonts/' + file, Buffer.from(await res.arrayBuffer()));
+}
+
 console.log('Built dist/ with ' + rows.length + ' words.');

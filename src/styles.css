@@ -186,14 +186,13 @@ p { text-wrap: pretty; }
 .shell > .wrap:not(.foot) { flex: 1; }
 
 /* ==== 3 chrome ==== */
-/* Wordmark: the headword, with the studio's orange point on the x */
-.logo { display: inline-flex; align-items: baseline; color: var(--fg); white-space: nowrap; }
+/* Logo: the fedelo.studio F, then the wordmark with the studio's orange on the x */
+.logo { display: inline-flex; align-items: center; gap: 10px; color: var(--fg); white-space: nowrap; }
+.fmark { flex: none; }
 .lx { color: var(--hot); }
 
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; background: var(--mix-bg-62); -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); border-bottom: 1px solid var(--line-soft); }
 .top .wrap { display: flex; align-items: center; gap: var(--space-3); min-height: 64px; }
-/* Thumb index: the first letter of the word in play, as on the edge of a dictionary */
-.thumb { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--card-dark); box-shadow: inset 0 0 0 1px var(--line); color: var(--fg); font-weight: var(--fw-medium); font-size: 15px; line-height: 1; }
 .round { color: var(--fg-dim); white-space: nowrap; }
 .spacer { flex: 1; }
 .clock { font-size: var(--text-button); font-weight: var(--fw-medium); color: var(--fg); }
@@ -203,7 +202,7 @@ p { text-wrap: pretty; }
 .tbar { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; }
 .tbar i { display: block; height: 100%; background: var(--fg); transform-origin: left center; transition: transform 1s linear; }
 .tbar.is-low i { background: var(--hot); }
-@media (max-width: 430px) { .top.in-game .brand { display: none; } }
+@media (max-width: 430px) { .top.in-game .logo-word { display: none; } }
 
 /* Players strip: a horizontal slider on phones */
 .strip { display: flex; gap: var(--space-2); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-block: var(--space-4) 2px; margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter-r)); padding-left: var(--gutter); padding-right: var(--gutter-r); scroll-padding-left: var(--gutter); }
