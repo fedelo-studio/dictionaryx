@@ -3,8 +3,8 @@
 const CFG = window.DICTIONARYX_CONFIG || {};
 const CODE_RE = /^[A-Z]{4,6}$/;
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-// Muted tints that sit on the dark page and keep the initials legible (fg on each is above 7:1).
-const AV_COLORS = ['#3B3F5C', '#5A3A47', '#2F5049', '#5C4632', '#47395E', '#2F4B5E', '#535033', '#38503A'];
+// Bright player colours, each one easy to tell apart on the dark page; initials are set in near-black on them.
+const AV_COLORS = ['#7C8BFF', '#FF6F9C', '#2FD3B0', '#FFC247', '#B98CFF', '#4FB8FF', '#A8D85A', '#FF9F6B'];
 const web = { sb: null, chan: null, room: roomFromUrl(), notFound: false, ver: 0, presence: { uid: null, ty: null } };
 const PLATFORM = { kind: 'web', kick: () => true, menuExtra: close => [['Nouvelle partie', () => { close(); goHome(); }]] };
 

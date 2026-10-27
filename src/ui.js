@@ -65,11 +65,22 @@ function Headword({ S }) {
   const w = S.word || {}; const e = bankEntry(w);
   const word = w.w || '';
   const fem = e ? e[1] : (w.fem || ''); const ipa = e ? e[2] : (w.ipa || ''); const nat = e ? e[3] : (w.nat || '');
-  return html`<div class="entry">
+  return html`<div class="entry wordcard">
+    <p class="kicker">Le mot à définir</p>
     <h1 class="hw" style=${'--len:' + Math.max(7, word.length)}><span class="mark" key=${word}>${word}</span>${fem ? html`<span class="fem">, ${fem}</span>` : null}</h1>
     ${ipa || nat ? html`<p class="hw-meta">${ipa ? html`<span class="ipa">[${ipa}]</span>` : null}${nat ? html`<span class="nat">${nat}</span>` : null}</p>` : null}
   </div>`;
 }
+
+/* Where the round stands: write, vote, reveal */
+const STEPS = [['write', 'Bluff'], ['vote', 'Vote'], ['reveal', 'Verdict']];
+function Steps({ S }) {
+  const at = STEPS.findIndex(s => s[0] === S.phase);
+  return html`<ol class="steps" aria-label="Étapes de la manche">${STEPS.map(([k, t], i) => html`<li key=${k} class=${i < at ? 'done' : i === at ? 'now' : ''} aria-current=${i === at ? 'step' : null}>
+    <span class="st-n">${i < at ? html`<${Check}/>` : i + 1}</span><span>${t}</span>
+  </li>`)}</ol>`;
+}
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 function statusOf(u, S) {
   if (!S) return null;
@@ -256,13 +267,14 @@ function DefForm({ S }) {
     run(async () => { if (await saveDef(txt)) { setEdit(false); lsSet('d:' + S.rk, ''); setTyping(null); } });
   };
   if (sent && !edit) return html`<div class="defform">
-    <p class="kicker">Ton bluff</p>
+    <h2 class="q">Bluff envoyé</h2>
     <div class="fiche own"><span class="num">·</span><span class="def">${sent}</span></div>
     <p class="help">Envoyé. Tu peux le retoucher jusqu’au vote.</p>
     <button class="link" type="button" onClick=${() => { setTxt(sent); setEdit(true); }}>Modifier mon bluff</button>
   </div>`;
   return html`<form class="defform" onSubmit=${submit}>
-    <label class="field"><span>Ton bluff</span>
+    <h2 class="q">Invente une fausse définition</h2>
+    <label class="field"><span>Ton bluff <b class="chars">${len}/400</b></span>
       <textarea id="def-input" rows="4" maxlength="400" value=${txt} placeholder="Invente une définition qui sent bon le dictionnaire…" onInput=${e => { setTxt(e.target.value); lsSet('d:' + S.rk, e.target.value); typingPing(S.rk); }}></textarea>
     </label>
     <p class="help">${tip}</p>
@@ -282,6 +294,7 @@ function Write({ S }) {
   const done = need.filter(u => hasDef(live[u])); const missing = need.filter(u => !hasDef(live[u]));
   const lead = rt.me && S.meneur === rt.me;
   return html`<section class="view">
+    <${Steps} S=${S}/>
     <${Headword} S=${S}/>
     ${S.note && S.note.t === 'knew' ? html`<p class="notice">${nameOf(S.note.by)} connaissait «¤${S.note.w}¤»¤: on en tire un autre.</p>` : null}
     ${lead ? html`<div class="banner">
@@ -304,13 +317,14 @@ function Vote({ S }) {
   const need = seatsOf(data.players).filter(u => u !== S.meneur);
   const done = need.filter(u => live[u] && live[u].vote); const missing = need.filter(u => !(live[u] && live[u].vote));
   return html`<section class="view">
+    <${Steps} S=${S}/>
     <${Headword} S=${S}/>
     <h2 class="q">${lead ? 'Les autres cherchent la vraie définition' : 'Laquelle est la vraie¦?'}</h2>
     <ol class="fiches">${(S.opts || []).map((o, i) => {
       const own = key[o.k] === rt.me; const truth = lead && key[o.k] === '*'; const on = !!(mine && mine.vote === o.k);
       const cls = 'fiche' + (own ? ' own' : '') + (on ? ' on' : '') + (truth ? ' truth' : '');
       return html`<li key=${o.k}><button type="button" class=${cls} style=${'--i:' + i} disabled=${!voter || own} aria-pressed=${on ? 'true' : 'false'} onClick=${() => castVote(o.k)}>
-        <span class="num">${i + 1}.</span><span class="def">${o.t}</span>
+        <span class="num">${LETTERS[i]}</span><span class="def">${o.t}</span>
         ${own ? html`<span class="tag">Ton bluff</span>` : on ? html`<span class="tag">Ton vote</span>` : truth ? html`<span class="tag">La vraie</span>` : null}
       </button></li>`;
     })}</ol>
@@ -324,7 +338,7 @@ function RevealCard({ o, i, shown, R }) {
   const truth = o.a === '*';
   const n = o.by.length;
   return html`<div class=${'fiche' + (shown ? (truth ? ' is-true' : ' is-fake') : '')} style=${'--i:' + i}>
-    <span class="num">${i + 1}.</span><span class="def">${o.t}</span>
+    <span class="num">${LETTERS[i]}</span><span class="def">${o.t}</span>
     ${shown ? html`<div class="attr">
       ${truth
         ? html`<span class="stamp is-true">Vrai</span>${R.lab ? html`<span class="lbl">${R.lab}</span>` : null}`
@@ -370,6 +384,7 @@ function Reveal({ S }) {
   const done = reached(S.scores, S.settings.target);
   const [busy, run] = useRun();
   return html`<section class="view">
+    <${Steps} S=${S}/>
     <${Headword} S=${S}/>
     <ol class="fiches">${R.opts.map((o, i) => html`<li key=${o.k}><${RevealCard} o=${o} i=${i} shown=${shown.has(o.k)} R=${R}/></li>`)}</ol>
     ${all ? html`<div class="block">
