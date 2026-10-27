@@ -195,20 +195,13 @@ p { text-wrap: pretty; }
 .shell > .wrap:not(.foot) { flex: 1; }
 
 /* ==== 3 chrome ==== */
-/* Logo, as on Secret Santa: the fedelo.studio F at 26 px, the wordmark with the studio's orange
-   on the x, a hairline, then what the game is. On phones the label goes under the name. */
+/* Logo, as on Secret Santa: the fedelo.studio F at 26 px, then the wordmark with the studio's
+   orange on the x. */
 .logo { display: inline-flex; align-items: center; gap: 12px; min-width: 0; color: var(--fg); white-space: nowrap; }
 .fmark { flex: none; }
 .lx { color: var(--hot); }
-.logo-txt { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+.logo-txt { display: inline-flex; align-items: center; min-width: 0; }
 .logo-word { font-size: 17px; font-weight: var(--fw-medium); letter-spacing: -.01em; line-height: 1.1; }
-.logo-sep { flex: none; width: 1px; height: 18px; background: var(--line); }
-.logo-ed { font-size: 13px; font-weight: var(--fw-medium); letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--hot-ink); line-height: 1; }
-@media (max-width: 480px) {
-  .logo-txt { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .logo-sep { display: none; }
-  .logo-ed { font-size: 11px; letter-spacing: .1em; }
-}
 
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; background: var(--mix-bg-62); -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); border-bottom: 1px solid var(--line-soft); }
 .top .wrap { display: flex; align-items: center; gap: var(--space-3); min-height: 64px; }

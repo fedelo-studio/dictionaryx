@@ -31,7 +31,7 @@ function Btn(props) {
 
 /* The fedelo.studio F before the wordmark */
 function Logo() {
-  return html`<span class="logo" role="img" aria-label="Dictionaryx, le jeu du dictionnaire, un jeu fedelo.studio"><${Mark} size=${26}/><span class="logo-txt" aria-hidden="true"><span class="logo-word">dictionary<span class="lx">x</span></span><span class="logo-sep"></span><span class="logo-ed">Jeu du dictionnaire</span></span></span>`;
+  return html`<span class="logo" role="img" aria-label="Dictionaryx, un jeu fedelo.studio"><${Mark} size=${26}/><span class="logo-txt" aria-hidden="true"><span class="logo-word">dictionary<span class="lx">x</span></span></span></span>`;
 }
 
 /* The studio's signature: the fedelo.studio mark, its point in orange. */
