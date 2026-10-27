@@ -3,7 +3,8 @@
 const CFG = window.DICTIONARYX_CONFIG || {};
 const CODE_RE = /^[A-Z]{4,6}$/;
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-const AV_COLORS = ['#2B3DE0', '#E0287A', '#0E8A78', '#D9480F', '#7B4BD8', '#1C7FC4', '#A86A12', '#3F7F2F'];
+// Muted tints that sit on the dark page and keep the initials legible (fg on each is above 7:1).
+const AV_COLORS = ['#3B3F5C', '#5A3A47', '#2F5049', '#5C4632', '#47395E', '#2F4B5E', '#535033', '#38503A'];
 const web = { sb: null, chan: null, room: roomFromUrl(), notFound: false, ver: 0, presence: { uid: null, ty: null } };
 const PLATFORM = { kind: 'web', kick: () => true, menuExtra: close => [['Nouvelle partie', () => { close(); goHome(); }]] };
 

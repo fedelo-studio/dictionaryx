@@ -5,3 +5,5 @@ dist/
 !.env.example
 .cache/
 .vercel/
+.DS_Store
+public/fonts/strawford-*

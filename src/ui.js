@@ -33,6 +33,13 @@ function Logo() {
   return html`<span class="logo" role="img" aria-label="Dictionaryx"><span aria-hidden="true">dictionary</span><span class="lx" aria-hidden="true">x</span></span>`;
 }
 
+/* The studio's signature: the fedelo.studio mark, its point in orange. */
+const Mark = () => html`<svg width="16" height="16" viewBox="0 0 136 136" aria-hidden="true"><path d="M21.27 136c2.27 0 4.1-1.85 4.31-4.11 1.94-20.2 17.99-36.26 38.19-38.19 2.26-.22 4.11-2.04 4.11-4.31V72.11c0-2.27-1.85-4.13-4.12-4C29.46 70.17 2.05 97.58.01 131.87-.13 134.14 1.73 136 4 136h17.27ZM134.1 0c.98 0 1.78.8 1.78 1.78 0 13.1-10.62 23.72-23.72 23.72H42.38c-8 0-14.68 5.5-16.5 12.92-.54 2.2-2.34 4.08-4.61 4.08H4c-2.27 0-4.14-1.85-3.92-4.11C2.14 16.83 20.28 0 42.38 0h91.72Z" fill="currentColor"/><circle cx="118.89" cy="119" r="17" fill="#FF4A1C"/></svg>`;
+
+function Foot() {
+  return html`<footer class="wrap foot"><a href="https://fedelo.studio" target="_blank" rel="noopener"><${Mark}/><span>Un jeu fedelo.studio</span></a></footer>`;
+}
+
 function Avatar({ u, size }) {
   const a = avatarOf(u); const nm = nameOf(u);
   const cls = 'av' + (size ? ' av-' + size : '') + (data.online.has(u) ? ' is-on' : '');
@@ -499,6 +506,7 @@ function App() {
         <aside class="side" aria-label="Joueurs">${gate ? null : html`<${Side} S=${S}/>`}</aside>
       </div>
     </div>
+    <${Foot}/>
     ${sheet ? html`<${Sheet} kind=${sheet} S=${gate ? null : S} setSheet=${setSheet}/>` : null}
     <div class="toasts" aria-live="polite">${toasts.map(t => html`<div class="toast" key=${t.id}>${t.t}</div>`)}</div>
   </div>`;
