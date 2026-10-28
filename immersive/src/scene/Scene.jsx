@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard, Text, useCursor } from '@react-three/drei'
 import { E, statusOf } from '../engine.js'
-import { Burst, Figure, Galaxy, WordCloud } from './particles.jsx'
+import { Figure, Galaxy, WordCloud } from './particles.jsx'
 import { figOf } from '../figures.js'
 
 export const C = {
@@ -85,13 +85,11 @@ function Rig({ shot, rows, calm }) {
   const { size } = useThree()
   useFrame((state, dt) => {
     const p = shotPose(shot, size, rows)
-    const t = state.clock.elapsedTime
-    // a slow breath of the camera, and the pointer's parallax: small, so nothing slides off the edge
-    const drift = calm ? 0 : Math.sin(t * 0.12) * 0.18
+    // only the pointer's parallax, small, so nothing slides off the edge
     const px = calm ? 0 : state.pointer.x * 0.25
     const py = calm ? 0 : state.pointer.y * 0.2
     const cam = state.camera
-    cam.position.x = damp(cam.position.x, p.pos[0] + px + drift, 2, dt)
+    cam.position.x = damp(cam.position.x, p.pos[0] + px, 2, dt)
     cam.position.y = damp(cam.position.y, p.pos[1] + py, 2, dt)
     cam.position.z = damp(cam.position.z, p.pos[2], 2, dt)
     look.current.x = damp(look.current.x, p.look[0], 2.4, dt)
@@ -122,21 +120,14 @@ function glowTexture() {
   return glowTex
 }
 
-function Point({ y = 4.3, on = true, phaseKey, calm }) {
+function Point({ y = 4.3, on = true }) {
   const ref = useRef()
   const show = useRef(on ? 1 : 0)
-  const halo = useRef()
-  const flare = useRef({ key: phaseKey, t: 0 })
   useFrame((state, dt) => {
-    if (flare.current.key !== phaseKey) flare.current = { key: phaseKey, t: 1 }
-    flare.current.t = damp(flare.current.t, 0, 2, dt)
-    const f = flare.current.t
-    const t = state.clock.elapsedTime
-    ref.current.position.y = damp(ref.current.position.y, y + (calm ? 0 : Math.sin(t * 0.8) * 0.1), 3, dt)
+    ref.current.position.y = damp(ref.current.position.y, y, 3, dt)
     show.current = damp(show.current, on ? 1 : 0, 3, dt)
     ref.current.scale.setScalar(Math.max(0.001, show.current))
     ref.current.visible = show.current > 0.01
-    halo.current.scale.setScalar(0.95 + f * 3 + (calm ? 0 : Math.sin(t * 2) * 0.05))
   })
   return (
     <group ref={ref} position={[0, y, -0.8]}>
@@ -144,7 +135,7 @@ function Point({ y = 4.3, on = true, phaseKey, calm }) {
         <sphereGeometry args={[0.11, 32, 32]} />
         <meshBasicMaterial color="#ff5a2a" toneMapped={false} />
       </mesh>
-      <sprite ref={halo}>
+      <sprite>
         <spriteMaterial map={glowTexture()} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </sprite>
     </group>
@@ -242,12 +233,11 @@ function Seat({ u, pos, scale, label: labelW, tall, crowded, S, score, maxScore,
   const fig = figOf(u)
   const column = showScore ? 0.3 + (maxScore ? score / maxScore : 0) * tall : 0
   useFrame((state, dt) => {
-    const t = state.clock.elapsedTime
     const g = group.current
     g.position.x = damp(g.position.x, pos[0], 3, dt)
     g.position.z = damp(g.position.z, pos[2], 3, dt)
     base.current = damp(base.current, pos[1], 3, dt)
-    g.position.y = base.current + (calm ? 0 : Math.sin(t * 1.2 + u.length) * 0.04)
+    g.position.y = base.current
     shown.current = damp(shown.current, away ? 0 : 1, 4, dt)
     g.scale.setScalar(Math.max(0.001, shown.current * scale))
     group.current.visible = shown.current > 0.01
@@ -342,7 +332,7 @@ function Card({ i, focus, card, onFocus, onPick, scale, reach }) {
     // the neighbours peek in from the sides, never past the edge of the free screen
     const x = Math.sign(d) * Math.min(Math.abs(d) * 2.25 * scale, reach + (Math.abs(d) - 1) * 0.8)
     const z = 1.5 - Math.min(3, Math.abs(d)) * 1.3
-    const y = 1.66 + (front && hover ? 0.05 : 0) + (front ? Math.sin(state.clock.elapsedTime * 1.2) * 0.02 : 0)
+    const y = 1.66
     g.position.x = damp(g.position.x, x, 4.5, dt)
     g.position.y = damp(g.position.y, y, 4.5, dt)
     g.position.z = damp(g.position.z, z, 4.5, dt)
@@ -437,13 +427,12 @@ export default function Scene({ view, focus, setFocus, onPick }) {
     <>
       <ambientLight intensity={0.6} />
       <Rig shot={view.shot} rows={rows} calm={calm} />
-      <Galaxy pulseKey={view.key} dim={!!view.cards} calm={calm} />
-      <Point y={view.pointY} on={!!view.pointOn} phaseKey={view.key} calm={calm} />
+      <Galaxy dim={!!view.cards} calm={calm} />
+      <Point y={view.pointY} on={!!view.pointOn} />
       <WordCloud text={t ? t.text : ''} hotFrom={t && t.landing ? t.text.length - 1 : -1} y={t ? wordY : 2.2} z={t ? t.z : -1} width={width || 6} font={FONT.medium} calm={calm} />
       {t && t.detail ? <Caption text={t.detail} y={captionY} z={t.z} /> : null}
       {view.seats ? <Seats S={view.S} layout={layout} showScore={view.showScore} away={!!view.cards} calm={calm} /> : null}
       {view.cards ? <Cards cards={view.cards} focus={focus} onFocus={setFocus} onPick={onPick} room={roomOf(1)} /> : null}
-      <Burst fireKey={view.burstKey} position={[0, 1.7, 1.4]} />
     </>
   )
 }

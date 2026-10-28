@@ -1,7 +1,7 @@
 // Every shape of the table is made of light: soft round points, added to each other, moved on the GPU.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 
 const HOT = new THREE.Color('#ff6a3a')
@@ -64,10 +64,6 @@ const pointMaterial = (vertexShader, uniforms) =>
 
 const isPhone = () => Math.min(window.innerWidth, window.innerHeight) < 600
 
-// The cloud only parts for a pointer that is really there: a mouse that moved, a finger that touched.
-let lastMove = -1e9
-if (typeof window !== 'undefined') window.addEventListener('pointermove', () => { lastMove = performance.now() }, { passive: true })
-
 /* ---------- the word, as a cloud of light ---------- */
 const WORD_VS = /* glsl */ `
 ${NOISE}
@@ -76,8 +72,6 @@ attribute vec3 aTo;
 attribute vec4 aRand;   // delay, size, phase, swirl
 attribute vec3 aColor;
 uniform float uTime, uStart, uDur, uPixel, uSize, uCalm;
-uniform vec3 uMouse;
-uniform float uPush;
 uniform float uSettle;
 varying vec3 vColor;
 varying float vAlpha;
@@ -90,11 +84,6 @@ void main() {
   vec3 n = vec3(snoise(aTo * 0.35 + uTime * 0.25), snoise(aTo * 0.35 + 17.0 + uTime * 0.25), snoise(aTo * 0.35 + 41.0));
   pos += n * travel * (1.4 + aRand.w * 1.6) * (1.0 - uCalm);
   pos += vec3(sin(uTime * 0.9 + aRand.z * 6.28), cos(uTime * 0.7 + aRand.z * 6.28), 0.0) * 0.012 * (1.0 - uCalm);
-  // the pointer parts the cloud
-  vec3 d = pos - uMouse;
-  float dl = length(d.xy);
-  pos.xy += normalize(d.xy + 1e-4) * uPush * exp(-dl * dl * 5.0) * 0.45;
-  pos.z += uPush * exp(-dl * dl * 5.0) * 0.35;
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
   gl_PointSize = uSize * aRand.y * uPixel * (10.0 / -mv.z);
@@ -175,7 +164,6 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font
   const head = useRef()
   const tail = useRef()
   const count = useMemo(() => (isPhone() ? 9000 : 16000), [])
-  const { camera, pointer } = useThree()
   const state = useRef({ start: 0, from: null, to: null, rand: null, ready: false })
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -206,8 +194,6 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font
         uPixel: { value: Math.min(window.devicePixelRatio || 1, 2) },
         uSize: { value: isPhone() ? 2.4 : 2.6 },
         uCalm: { value: calm ? 1 : 0 },
-        uMouse: { value: new THREE.Vector3(99, 99, 0) },
-        uPush: { value: 0 },
         uSettle: { value: 0 },
       }),
     [],
@@ -258,9 +244,6 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font
     return () => { cancelled = true }
   }, [text, hotFrom, width])
 
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), [])
-  const ray = useMemo(() => new THREE.Raycaster(), [])
-  const hit = useMemo(() => new THREE.Vector3(), [])
   useFrame((st, dt) => {
     const u = mat.uniforms
     u.uTime.value += dt
@@ -272,13 +255,6 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font
     const g = group.current
     g.position.y = THREE.MathUtils.damp(g.position.y, y, 3, dt)
     g.position.z = THREE.MathUtils.damp(g.position.z, z, 3, dt)
-    // the pointer, on the word's plane, in the word's own space
-    plane.constant = -g.position.z
-    ray.setFromCamera(pointer, camera)
-    if (ray.ray.intersectPlane(plane, hit)) {
-      mat.uniforms.uMouse.value.set(hit.x - g.position.x, hit.y - g.position.y, 0)
-      mat.uniforms.uPush.value = THREE.MathUtils.damp(mat.uniforms.uPush.value, !calm && performance.now() - lastMove < 2500 ? 1 : 0, 4, dt)
-    }
   })
   return (
     <group ref={group} position={[0, y, z]}>
@@ -303,24 +279,21 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font
 const GALAXY_VS = /* glsl */ `
 attribute vec4 aOrbit;  // radius, angle, height, rand
 attribute vec3 aColor;
-uniform float uTime, uPixel, uSize, uPulse, uCalm, uDim;
+uniform float uTime, uPixel, uSize, uCalm, uDim;
 varying vec3 vColor;
 varying float vAlpha;
 void main() {
   float r = aOrbit.x;
   float a = aOrbit.y + uTime * (0.9 / (r + 0.6)) * 0.12 * (1.0 - uCalm * 0.9);
   vec3 pos = vec3(cos(a) * r, aOrbit.z + sin(uTime * 0.6 + aOrbit.w * 6.28) * 0.015, sin(a) * r);
-  // a ring of light runs out from the centre when a phase changes
-  float age = uTime - uPulse;
-  float wave = exp(-pow((r - age * 3.2), 2.0) * 3.0) * exp(-age * 0.8);
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = uSize * (0.6 + aOrbit.w) * uPixel * (10.0 / -mv.z) * (1.0 + wave * 1.5);
-  vColor = mix(aColor, vec3(1.0, 0.42, 0.2), clamp(wave, 0.0, 1.0));
-  vAlpha = (0.5 + wave * 1.5) * uDim;
+  gl_PointSize = uSize * (0.6 + aOrbit.w) * uPixel * (10.0 / -mv.z);
+  vColor = aColor;
+  vAlpha = 0.5 * uDim;
 }`
 
-export function Galaxy({ pulseKey, dim, calm }) {
+export function Galaxy({ dim, calm }) {
   const count = useMemo(() => (isPhone() ? 5000 : 9000), [])
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -353,13 +326,11 @@ export function Galaxy({ pulseKey, dim, calm }) {
         uTime: { value: 0 },
         uPixel: { value: Math.min(window.devicePixelRatio || 1, 2) },
         uSize: { value: isPhone() ? 2.2 : 1.9 },
-        uPulse: { value: -99 },
         uCalm: { value: calm ? 1 : 0 },
         uDim: { value: 1 },
       }),
     [],
   )
-  useEffect(() => { mat.uniforms.uPulse.value = mat.uniforms.uTime.value }, [pulseKey])
   useFrame((_, dt) => {
     mat.uniforms.uTime.value += dt
     // quieter while the cards are read
@@ -485,47 +456,4 @@ export function Figure({ fig, color, agitate = 0, ready = 0, column = 0, calm, h
       <points position={[0, -0.5, 0]} geometry={ring} material={ringMat} frustumCulled={false} />
     </group>
   )
-}
-
-/* ---------- a burst of light, when the true definition turns ---------- */
-const BURST_VS = /* glsl */ `
-attribute vec4 aVel;  // velocity xyz, rand
-uniform float uTime, uStart, uPixel, uSize;
-varying vec3 vColor;
-varying float vAlpha;
-void main() {
-  float age = uTime - uStart;
-  vec3 pos = aVel.xyz * (1.0 - exp(-age * 2.2)) * 2.2 + vec3(0.0, -0.35 * age * age, 0.0);
-  vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-  gl_Position = projectionMatrix * mv;
-  float life = clamp(1.0 - age / 2.2, 0.0, 1.0);
-  gl_PointSize = uSize * (0.5 + aVel.w) * uPixel * (10.0 / -mv.z) * life;
-  vColor = mix(vec3(1.0, 0.85, 0.7), vec3(1.0, 0.29, 0.11), aVel.w);
-  vAlpha = life * step(0.0, age);
-}`
-
-export function Burst({ fireKey, position }) {
-  const count = 700
-  const geo = useMemo(() => {
-    const g = new THREE.BufferGeometry()
-    const vel = new Float32Array(count * 4)
-    for (let k = 0; k < count; k++) {
-      const v = new THREE.Vector3().randomDirection().multiplyScalar(0.4 + Math.random() * 1.2)
-      vel[k * 4] = v.x * 1.4
-      vel[k * 4 + 1] = v.y
-      vel[k * 4 + 2] = v.z * 0.6
-      vel[k * 4 + 3] = Math.random()
-    }
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    g.setAttribute('aVel', new THREE.BufferAttribute(vel, 4))
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 20)
-    return g
-  }, [])
-  const mat = useMemo(
-    () => pointMaterial(BURST_VS, { uTime: { value: 0 }, uStart: { value: -99 }, uPixel: { value: Math.min(window.devicePixelRatio || 1, 2) }, uSize: { value: 3.2 } }),
-    [],
-  )
-  useEffect(() => { if (fireKey) mat.uniforms.uStart.value = mat.uniforms.uTime.value }, [fireKey])
-  useFrame((_, dt) => { mat.uniforms.uTime.value += dt })
-  return <points geometry={geo} material={mat} position={position} frustumCulled={false} />
 }

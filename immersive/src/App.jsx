@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { AdaptiveDpr } from '@react-three/drei'
 import Scene from './scene/Scene.jsx'
 import Overlay from './ui/Overlay.jsx'
-import ShaderBackground, { ripple } from './ui/ShaderBackground.jsx'
+import ShaderBackground from './ui/ShaderBackground.jsx'
 import { E, useEngine, wordOf } from './engine.js'
 
 /** Reveals the definitions one by one: the bluffs first, the true one last, as the 2D game does. */
@@ -119,7 +119,6 @@ export default function App() {
   useEffect(() => {
     setFocus(0)
     setCardsOpen(false)
-    ripple(0.5, 0.62)
   }, [phaseKey])
   // during the reveal, the card being turned comes to the front
   useEffect(() => {
