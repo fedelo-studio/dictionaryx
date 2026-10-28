@@ -86,12 +86,35 @@ function FigIcon({ fig, size = 22, hot }) {
     c.height = size * dpr
     const g = c.getContext('2d')
     g.scale(dpr, dpr)
-    const k = Math.min((size - 2) / 1, (w - 2) / Math.max(1, fig.length))
-    const rgb = hot ? '255,74,28' : '245,245,242'
-    const r = Math.max(0.5, size / 40)
-    for (let i = 0; i < fig.pts.length; i += 3) {
-      g.fillStyle = `rgba(${rgb},${(0.35 * fig.light[i / 3]).toFixed(2)})`
-      g.fillRect(w / 2 + fig.pts[i] * k - r, size - 1 - fig.pts[i + 1] * k - r, r * 2, r * 2)
+    const k = Math.min(size - 2, (w - 2) / Math.max(1, fig.length))
+    const base = hot ? [255, 74, 28] : [236, 233, 226]
+    // the clay figurine in miniature: its facets turned a little, lit from the upper left, drawn back to front
+    const ca = Math.cos(-0.35)
+    const sa = Math.sin(-0.35)
+    const tris = []
+    for (const p of fig.parts) {
+      const at = i => { const x = p.pos[i * 3], z = p.pos[i * 3 + 2]; return [x * ca + z * sa, p.pos[i * 3 + 1], -x * sa + z * ca] }
+      for (let t = 0; t < p.idx.length; t += 3) {
+        const [a, b, d] = [at(p.idx[t]), at(p.idx[t + 1]), at(p.idx[t + 2])]
+        const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+        const v = [d[0] - a[0], d[1] - a[1], d[2] - a[2]]
+        const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+        const len = Math.hypot(...n) || 1
+        if (n[2] <= 0) continue
+        const lit = 0.5 + 0.5 * Math.max(0, (-0.45 * n[0] + 0.75 * n[1] + 0.5 * n[2]) / len)
+        tris.push({ a, b, d, z: a[2] + b[2] + d[2], shade: lit * p.light })
+      }
+    }
+    tris.sort((x, y) => x.z - y.z)
+    for (const t of tris) {
+      g.fillStyle = `rgb(${base.map(c => Math.round(c * t.shade)).join(',')})`
+      g.strokeStyle = g.fillStyle
+      g.lineWidth = 0.4
+      g.beginPath()
+      for (const [x, y] of [t.a, t.b, t.d]) g.lineTo(w / 2 + x * k, size - 1 - y * k)
+      g.closePath()
+      g.fill()
+      g.stroke()
     }
   }, [fig, size, hot])
   return <canvas ref={ref} className="fig-icon" style={{ width: Math.round(size * 1.5), height: size }} aria-hidden="true" />

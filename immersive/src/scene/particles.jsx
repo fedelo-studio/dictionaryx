@@ -1,4 +1,4 @@
-// Every shape of the table is made of light: soft round points, added to each other, moved on the GPU.
+// The word and the table are made of light: soft round points, added to each other, moved on the GPU.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
@@ -88,8 +88,8 @@ void main() {
   gl_Position = projectionMatrix * mv;
   gl_PointSize = uSize * aRand.y * uPixel * (10.0 / -mv.z);
   vColor = aColor * (1.0 + travel * 0.6);
-  // once the word has landed, the real letters take over and the cloud stays only as a glow round them
-  vAlpha = (0.55 + 0.45 * (1.0 - travel)) * (1.0 - uSettle * 0.86);
+  // once the word has landed, the real letters take over and the cloud is gone
+  vAlpha = (0.55 + 0.45 * (1.0 - travel)) * (1.0 - uSettle);
 }`
 
 // Where the particles of a text go: the text drawn on a hidden canvas, its lit pixels sampled.
@@ -163,7 +163,7 @@ export function WordCloud({ text, hotFrom = -1, y = 2.4, z = -1, width = 7, font
   const settle = useRef(0)
   const head = useRef()
   const tail = useRef()
-  const count = useMemo(() => (isPhone() ? 9000 : 16000), [])
+  const count = useMemo(() => (isPhone() ? 3500 : 6000), [])
   const state = useRef({ start: 0, from: null, to: null, rand: null, ready: false })
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -294,7 +294,7 @@ void main() {
 }`
 
 export function Galaxy({ dim, calm }) {
-  const count = useMemo(() => (isPhone() ? 5000 : 9000), [])
+  const count = useMemo(() => (isPhone() ? 1200 : 2200), [])
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
     const orbit = new Float32Array(count * 4)
@@ -307,7 +307,7 @@ export function Galaxy({ dim, calm }) {
       orbit[k * 4 + 1] = Math.random() * Math.PI * 2
       orbit[k * 4 + 2] = (Math.random() - 0.5) * (band ? 0.12 : 0.05)
       orbit[k * 4 + 3] = Math.random()
-      const warm = Math.random() < 0.14
+      const warm = Math.random() < 0.06
       const b = band ? 0.45 + Math.random() * 0.4 : 0.18 + Math.random() * 0.2
       const c = warm ? HOT : FG
       color[k * 3] = c.r * b
@@ -337,123 +337,4 @@ export function Galaxy({ dim, calm }) {
     mat.uniforms.uDim.value = THREE.MathUtils.damp(mat.uniforms.uDim.value, dim ? 0.35 : 1, 3, dt)
   })
   return <points geometry={geo} material={mat} frustumCulled={false} />
-}
-
-/* ---------- a player: their figurine, in points of light ---------- */
-const FIGURE_VS = /* glsl */ `
-${NOISE}
-attribute vec3 aFig;    // the figurine's point
-attribute vec4 aRand;   // light, rand, phase, unused
-uniform float uTime, uPixel, uSize, uAgitate, uRing, uColumn, uCalm, uShow, uMorph;
-uniform vec3 uColor;
-varying vec3 vColor;
-varying float vAlpha;
-void main() {
-  float r = aRand.y;
-  vec3 pos = aFig;
-  // writing: the figure shivers, its points lifted by a noise
-  pos += vec3(snoise(aFig * 3.0 + uTime * 1.8), snoise(aFig * 3.0 + 9.0 + uTime * 1.8), snoise(aFig * 3.0 + 21.0 + uTime * 1.8)) * uAgitate * 0.05;
-  // a change of figurine: the points scatter and gather again
-  pos += normalize(aFig + vec3(0.001)) * sin(3.14159 * uMorph) * (0.4 + r * 0.8) * (1.0 - uCalm);
-  // the scores: the figure stands on a column of light
-  pos.y += uColumn;
-  vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-  gl_Position = projectionMatrix * mv;
-  gl_PointSize = uSize * (0.7 + r * 0.6) * uPixel * (10.0 / -mv.z);
-  vColor = uColor * aRand.x;
-  vAlpha = 0.95 * uShow;
-}`
-
-const RING_VS = /* glsl */ `
-attribute vec4 aDir;    // angle, height, radius, rand
-uniform float uTime, uPixel, uSize, uRing, uColumn, uCalm, uShow;
-uniform vec3 uColor;
-varying vec3 vColor;
-varying float vAlpha;
-void main() {
-  float a = aDir.x + uTime * (0.4 + aDir.w * 0.5) * (1.0 - uCalm * 0.9);
-  // ready: a ring of light round the figurine's feet; the scores: a column under it
-  float rad = mix(0.62, 0.2, step(0.001, uColumn)) * (0.9 + aDir.z * 0.2);
-  vec3 pos = vec3(cos(a) * rad, aDir.y * uColumn, sin(a) * rad * 0.6);
-  vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-  gl_Position = projectionMatrix * mv;
-  gl_PointSize = uSize * (0.6 + aDir.w * 0.8) * uPixel * (10.0 / -mv.z);
-  vColor = uColor;
-  vAlpha = max(uRing, clamp(uColumn * 3.0, 0.0, 1.0)) * 0.8 * uShow;
-}`
-
-/** A player's figurine. fig: from figures.js; scale: the height of the figure. */
-export function Figure({ fig, color, agitate = 0, ready = 0, column = 0, calm, height = 0.95 }) {
-  const count = fig.pts.length / 3
-  const geo = useMemo(() => {
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    g.setAttribute('aFig', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    const rand = new Float32Array(count * 4)
-    for (let k = 0; k < count; k++) { rand[k * 4 + 1] = Math.random(); rand[k * 4 + 2] = Math.random() }
-    g.setAttribute('aRand', new THREE.BufferAttribute(rand, 4))
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 20)
-    return g
-  }, [count])
-  const ring = useMemo(() => {
-    const n = 260
-    const g = new THREE.BufferGeometry()
-    const dir = new Float32Array(n * 4)
-    for (let k = 0; k < n; k++) { dir[k * 4] = Math.random() * Math.PI * 2; dir[k * 4 + 1] = Math.random(); dir[k * 4 + 2] = Math.random(); dir[k * 4 + 3] = Math.random() }
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
-    g.setAttribute('aDir', new THREE.BufferAttribute(dir, 4))
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 20)
-    return g
-  }, [])
-  const shared = () => ({
-    uTime: { value: Math.random() * 10 },
-    uPixel: { value: Math.min(window.devicePixelRatio || 1, 2) },
-    uAgitate: { value: 0 },
-    uRing: { value: 0 },
-    uColumn: { value: 0 },
-    uCalm: { value: calm ? 1 : 0 },
-    uShow: { value: 1 },
-    uMorph: { value: 1 },
-    uColor: { value: new THREE.Color(color) },
-  })
-  const mat = useMemo(() => pointMaterial(FIGURE_VS, { ...shared(), uSize: { value: isPhone() ? 2.6 : 3.1 } }), [])
-  const ringMat = useMemo(() => pointMaterial(RING_VS, { ...shared(), uSize: { value: isPhone() ? 2.4 : 2.1 } }), [])
-  // a new figurine: its points, sized to fit a seat, and the scatter that brings them
-  useEffect(() => {
-    const k = Math.min(height, 1.3 / Math.max(0.5, fig.length))
-    const p = geo.getAttribute('aFig')
-    const r = geo.getAttribute('aRand')
-    for (let i = 0; i < count; i++) {
-      p.array[i * 3] = fig.pts[i * 3] * k
-      p.array[i * 3 + 1] = fig.pts[i * 3 + 1] * k - 0.5
-      p.array[i * 3 + 2] = fig.pts[i * 3 + 2] * k
-      r.array[i * 4] = fig.light[i]
-    }
-    p.needsUpdate = true
-    r.needsUpdate = true
-    mat.uniforms.uMorph.value = 0
-  }, [fig, height])
-  useEffect(() => { mat.uniforms.uColor.value.set(color); ringMat.uniforms.uColor.value.set(color) }, [color])
-  const turn = useRef()
-  useFrame((st, dt) => {
-    const damp = THREE.MathUtils.damp
-    for (const m of [mat, ringMat]) {
-      const u = m.uniforms
-      u.uTime.value += dt
-      u.uAgitate.value = damp(u.uAgitate.value, agitate, 4, dt)
-      u.uRing.value = damp(u.uRing.value, ready, 3, dt)
-      u.uColumn.value = damp(u.uColumn.value, column, 2.2, dt)
-    }
-    mat.uniforms.uMorph.value = Math.min(1, mat.uniforms.uMorph.value + dt / 1.2)
-    // in a three-quarter profile, turning a little, as a figurine on a turntable
-    turn.current.rotation.y = -0.5 + (calm ? 0 : Math.sin(mat.uniforms.uTime.value * 0.35) * 0.3)
-  })
-  return (
-    <group>
-      <group ref={turn}>
-        <points geometry={geo} material={mat} frustumCulled={false} />
-      </group>
-      <points position={[0, -0.5, 0]} geometry={ring} material={ringMat} frustumCulled={false} />
-    </group>
-  )
 }

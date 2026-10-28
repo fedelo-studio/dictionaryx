@@ -31,7 +31,7 @@ function useRevealStep(S) {
 function buildView(S, gate, reveal, focus, cardsOpen) {
   const key = gate ? 'gate' : S ? S.phase + ':' + (S.rk || '') : 'none'
   if (gate || !S) {
-    return { key, shot: 'home', pointY: 4.1, pointOn: true, title: { text: 'dictionaryx', detail: 'n. m.   jeu de bluff', y: 2.1, z: -0.6, landing: true, width: 6.2 } }
+    return { key, shot: 'home', title: { text: 'dictionaryx', detail: 'n. m.   jeu de bluff', y: 2.1, z: -0.6, landing: true, width: 6.2 } }
   }
   const w = wordOf(S)
   const wordTitle = (y, z, small) => {
@@ -40,10 +40,10 @@ function buildView(S, gate, reveal, focus, cardsOpen) {
     // with the cards on the table, the nature goes to the panel: nothing under the word
     return { text, detail: small ? '' : w.nat, y, z, width }
   }
-  const base = { key, S, seats: true, pointY: 4.5 }
-  if (S.phase === 'lobby') return { ...base, shot: 'lobby', pointOn: true, title: { text: 'dictionaryx', detail: 'en attendant les joueurs', y: 2.3, z: -2.2, landing: true, width: 6.4 } }
+  const base = { key, S, seats: true }
+  if (S.phase === 'lobby') return { ...base, shot: 'lobby', title: { text: 'dictionaryx', detail: 'en attendant les joueurs', y: 2.3, z: -2.2, landing: true, width: 6.4 } }
   if (S.phase === 'pick') return { ...base, shot: 'lobby', title: null }
-  if (S.phase === 'write') return { ...base, shot: 'write', pointY: 4.2, title: wordTitle(2.2, -0.9) }
+  if (S.phase === 'write') return { ...base, shot: 'write', title: wordTitle(2.2, -0.9) }
   if (S.phase === 'vote') {
     let key2 = {}
     try { key2 = JSON.parse(E.dec(S.key) || '{}') } catch { key2 = {} }
@@ -64,7 +64,7 @@ function buildView(S, gate, reveal, focus, cardsOpen) {
         clickable: voter && !own,
       }
     })
-    return { ...base, shot: 'cards', pointY: 4.8, title: wordTitle(3.3, -1.7, true), cards }
+    return { ...base, shot: 'cards', title: wordTitle(3.3, -1.7, true), cards }
   }
   if (S.phase === 'reveal') {
     const R = S.reveal || { opts: [], pts: {} }
@@ -90,7 +90,7 @@ function buildView(S, gate, reveal, focus, cardsOpen) {
     const truth = R.opts.find(o => o.a === '*')
     const burstKey = truth && shown.has(truth.k) ? S.rk : null
     const scores = reveal.all && !cardsOpen
-    return { ...base, shot: scores ? 'scores' : 'cards', title: wordTitle(scores ? 3.1 : 3.3, -1.7, !scores), pointY: 4.8, pointOn: scores, cards: scores ? null : cards, showScore: true, burstKey }
+    return { ...base, shot: scores ? 'scores' : 'cards', title: wordTitle(scores ? 3.1 : 3.3, -1.7, !scores), cards: scores ? null : cards, showScore: true, burstKey }
   }
   // end of the game
   const rows = E.ranking(S.scores, E.seatsOf(E.data.players))
@@ -101,8 +101,6 @@ function buildView(S, gate, reveal, focus, cardsOpen) {
     showScore: true,
     title: (() => { const text = top.length ? E.listNames(top.map(r => r.u)) : 'Fin de partie'; return { text, detail: top.length ? (top.length > 1 ? 'gagnent' : 'gagne') : '', y: 3.1, z: -2, width: Math.min(6.4, Math.max(2.4, text.length * 0.6)) } })(),
     burstKey: 'end:' + (S.g || ''),
-    pointY: 4.8,
-    pointOn: true,
   }
 }
 

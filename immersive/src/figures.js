@@ -1,17 +1,19 @@
 // The figurines: one shape per player, chosen on arrival and kept in the room's state (state.figs), so every
-// phone sees the same table. The shapes are Quaternius's Farm Animals (CC0), sampled by scripts/figures.mjs.
+// phone sees the same table. The shapes are Quaternius's Farm Animals (CC0), baked by scripts/figures.mjs.
 import RAW from './scene/figures.json'
 import { E } from './engine.js'
 
-/** Each figurine: id, French name, points (x, y, z: one unit tall, in profile along x), and a lightness per point. */
+/** Each figurine: id, French name, length, and its parts (positions one unit tall, in profile along x; indices; a lightness). */
 export const FIGS = RAW.map(f => {
-  const lo = Math.min(...f.lum)
-  const hi = Math.max(...f.lum)
-  // the material's lightness kept as a contrast inside the figure, never as a colour: spots, stripes, a muzzle
-  const light = f.lum.map(l => (hi > lo ? 0.42 + 0.58 * ((l - lo) / (hi - lo)) : 1))
-  let len = 0
-  for (let i = 0; i < f.pts.length; i += 3) len = Math.max(len, Math.abs(f.pts[i]))
-  return { id: f.id, name: f.name, pts: f.pts, light, length: len * 2 }
+  const lo = Math.min(...f.parts.map(p => p.lum))
+  // the material's lightness kept as a contrast inside the figure, never as a colour: the body in full clay,
+  // the darker parts a shade down. The body is the lightest large part: the white of a cow under its spots,
+  // else the part with most faces.
+  const big = f.parts.reduce((a, p) => (p.idx.length > a.idx.length ? p : a))
+  const body = Math.max(...f.parts.filter(p => p.idx.length >= big.idx.length / 2).map(p => p.lum))
+  const light = lum => (lum >= body || body <= lo ? 1 : 0.42 + 0.58 * ((lum - lo) / (body - lo)))
+  const parts = f.parts.map(p => ({ pos: p.pos, idx: p.idx, light: light(p.lum) }))
+  return { id: f.id, name: f.name, length: f.length, parts }
 })
 const BY_ID = Object.fromEntries(FIGS.map(f => [f.id, f]))
 

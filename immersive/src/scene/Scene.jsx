@@ -1,11 +1,12 @@
-// The table is made of light: the fedelo.studio field behind (ShaderBackground), a slow galaxy for the table,
-// the word as a cloud of particles, each player a swarm of their colour, the definitions dealt as glass cards.
+// The table: the fedelo.studio field behind (ShaderBackground), a sparse galaxy for the table, the word gathered
+// from particles into type, each player a clay figurine, the definitions dealt as glass cards.
 import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard, Text, useCursor } from '@react-three/drei'
 import { E, statusOf } from '../engine.js'
-import { Figure, Galaxy, WordCloud } from './particles.jsx'
+import { Galaxy, WordCloud } from './particles.jsx'
+import { Figure } from './Figure.jsx'
 import { figOf } from '../figures.js'
 
 export const C = {
@@ -101,45 +102,6 @@ function Rig({ shot, rows, calm }) {
     cam.setViewOffset(size.width, size.height, offset.current.x, offset.current.y, size.width, size.height)
   })
   return null
-}
-
-/* ---------- the studio's point ---------- */
-let glowTex = null
-function glowTexture() {
-  if (glowTex) return glowTex
-  const c = document.createElement('canvas')
-  c.width = c.height = 128
-  const g = c.getContext('2d')
-  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64)
-  r.addColorStop(0, 'rgba(255,140,90,1)')
-  r.addColorStop(0.2, 'rgba(255,74,28,0.55)')
-  r.addColorStop(1, 'rgba(255,74,28,0)')
-  g.fillStyle = r
-  g.fillRect(0, 0, 128, 128)
-  glowTex = new THREE.CanvasTexture(c)
-  return glowTex
-}
-
-function Point({ y = 4.3, on = true }) {
-  const ref = useRef()
-  const show = useRef(on ? 1 : 0)
-  useFrame((state, dt) => {
-    ref.current.position.y = damp(ref.current.position.y, y, 3, dt)
-    show.current = damp(show.current, on ? 1 : 0, 3, dt)
-    ref.current.scale.setScalar(Math.max(0.001, show.current))
-    ref.current.visible = show.current > 0.01
-  })
-  return (
-    <group ref={ref} position={[0, y, -0.8]}>
-      <mesh>
-        <sphereGeometry args={[0.11, 32, 32]} />
-        <meshBasicMaterial color="#ff5a2a" toneMapped={false} />
-      </mesh>
-      <sprite>
-        <spriteMaterial map={glowTexture()} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
-      </sprite>
-    </group>
-  )
 }
 
 /* ---------- the word's details, under the cloud ---------- */
@@ -425,10 +387,12 @@ export default function Scene({ view, focus, setFocus, onPick }) {
   const rows = view.cards ? 1 : layout.rows
   return (
     <>
-      <ambientLight intensity={0.6} />
+      {/* clay light: a soft sky from above, a key from the upper left, a rim from behind to lift the edges off the dark */}
+      <hemisphereLight args={['#fff4ea', '#16130f', 0.9]} />
+      <directionalLight position={[-3, 6, 5]} intensity={1.6} color="#fff8f0" />
+      <directionalLight position={[3, 2.5, -5]} intensity={0.9} color="#ffffff" />
       <Rig shot={view.shot} rows={rows} calm={calm} />
       <Galaxy dim={!!view.cards} calm={calm} />
-      <Point y={view.pointY} on={!!view.pointOn} />
       <WordCloud text={t ? t.text : ''} hotFrom={t && t.landing ? t.text.length - 1 : -1} y={t ? wordY : 2.2} z={t ? t.z : -1} width={width || 6} font={FONT.medium} calm={calm} />
       {t && t.detail ? <Caption text={t.detail} y={captionY} z={t.z} /> : null}
       {view.seats ? <Seats S={view.S} layout={layout} showScore={view.showScore} away={!!view.cards} calm={calm} /> : null}
