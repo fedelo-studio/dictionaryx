@@ -1,6 +1,7 @@
 // What sits over the 3D table: the top bar, and one panel per phase for what needs typing or choosing.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { E, fr, statusOf, tipFor, useRun, useTick, wordOf } from '../engine.js'
+import { FIGS, chooseFig, figOf, preferredFig, takenBy } from '../figures.js'
 
 const NATS = ['n. m.', 'n. f.', 'adj.', 'v.', 'adv.', 'loc.']
 
@@ -74,6 +75,56 @@ function Force({ label, ask, go }) {
 }
 
 /* ---------- top bar ---------- */
+/** A figurine drawn flat, in points of light, as on the table. */
+function FigIcon({ fig, size = 22, hot }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const c = ref.current
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const w = Math.round(size * 1.5)
+    c.width = w * dpr
+    c.height = size * dpr
+    const g = c.getContext('2d')
+    g.scale(dpr, dpr)
+    const k = Math.min((size - 2) / 1, (w - 2) / Math.max(1, fig.length))
+    const rgb = hot ? '255,74,28' : '245,245,242'
+    const r = Math.max(0.5, size / 40)
+    for (let i = 0; i < fig.pts.length; i += 3) {
+      g.fillStyle = `rgba(${rgb},${(0.35 * fig.light[i / 3]).toFixed(2)})`
+      g.fillRect(w / 2 + fig.pts[i] * k - r, size - 1 - fig.pts[i + 1] * k - r, r * 2, r * 2)
+    }
+  }, [fig, size, hot])
+  return <canvas ref={ref} className="fig-icon" style={{ width: Math.round(size * 1.5), height: size }} aria-hidden="true" />
+}
+
+/** The figurines to choose from; those already at the table say whose they are. */
+function FigPicker({ value, onPick }) {
+  const taken = takenBy()
+  return (
+    <div className="seg">
+      <span className="kicker">Ta figurine</span>
+      <div className="figs" role="radiogroup" aria-label="Ta figurine">
+        {FIGS.map(f => {
+          const by = taken[f.id]
+          return (
+            <button key={f.id} type="button" role="radio" aria-checked={value === f.id} className={'fig' + (value === f.id ? ' on' : '')} disabled={!!by} onClick={() => onPick(f.id)}>
+              <FigIcon fig={f} size={34} hot={value === f.id} />
+              <span>{by ? E.nameOf(by) : f.name}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Your own figurine, changed at once at the table. */
+function MyFig() {
+  const [pending, setPending] = useState(null)
+  const cur = pending || figOf(E.rt.me).id
+  return <FigPicker value={cur} onPick={id => { setPending(id); chooseFig(id).then(() => setPending(null)) }} />
+}
+
 function Top({ S, onMenu }) {
   useTick()
   const inGame = !!(S && S.phase !== 'lobby')
@@ -118,10 +169,15 @@ function Landing() {
 
 function JoinForm() {
   const [nick, setNick] = useState(() => E.lsGet('nick') || '')
+  const [fig, setFig] = useState(preferredFig)
   const [busy, run] = useRun()
   const ok = nick.trim().length > 0
+  // someone took it meanwhile: the next free one
+  const free = takenBy()[fig] ? preferredFig() : fig
+  const join = async () => { E.lsSet('fig', free); if (await E.joinGame(nick)) await chooseFig(free) }
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); if (ok) run(() => E.joinGame(nick)) }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); if (ok) run(join) }}>
+      <FigPicker value={free} onPick={setFig} />
       <label className="field">
         <span>Ton pseudo</span>
         <input value={nick} maxLength={24} placeholder={fr('Comment on t’appelle ?')} autoComplete="nickname" onChange={e => setNick(e.target.value)} />
@@ -166,6 +222,7 @@ function Lobby({ S }) {
   return (
     <>
       <Invite />
+      <MyFig />
       <div className="stack">
         <span className="kicker">Réglages</span>
         <Seg label="Les mots" value={cur.src} options={[['bank', 'Banque du jeu'], ['dict', 'Vrai dictionnaire']]} onPick={v => set({ src: v })} />
@@ -320,7 +377,7 @@ function Scores({ S, pts }) {
       {rows.map(r => (
         <li key={r.u} className={r.r === 1 && r.s > 0 ? 'lead' : ''}>
           <span className="rk">{r.r}</span>
-          <span className="dot" style={{ background: E.avatarOf(r.u).color }} />
+          <FigIcon fig={figOf(r.u)} hot={r.u === E.rt.me} />
           <span className="nm">{E.nameOf(r.u)}{r.u === E.rt.me ? <span className="me"> (toi)</span> : null}</span>
           {pts && pts[r.u] ? <span className="pts">+{pts[r.u]}</span> : <span />}
           <b className="tot">{r.s}</b>
@@ -467,7 +524,7 @@ export default function Overlay({ S, gate, view, focus, setFocus, reveal, cardsO
         <div className="panel-in">{body}</div>
         {me && S && S.phase !== 'lobby' ? (
           <p className="you-line">
-            <span className="dot" style={{ background: E.avatarOf(E.rt.me).color }} /> {me.nick} · {(S.scores || {})[E.rt.me] || 0} pts
+            <FigIcon fig={figOf(E.rt.me)} size={18} hot /> {me.nick} · {(S.scores || {})[E.rt.me] || 0} pts
             {statusOf(E.rt.me, S) ? <span className="st"> · {statusOf(E.rt.me, S).t}</span> : null}
           </p>
         ) : null}

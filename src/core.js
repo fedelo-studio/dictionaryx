@@ -73,7 +73,7 @@ function freshState(prev) {
     v: 1, phase: 'lobby',
     settings: Object.assign({ src: 'bank', target: 15, timer: 0 }, prev && prev.settings),
     g: rid(8), round: 0, rk: null, meneur: null, word: null, ans: null,
-    used: (prev && prev.used) || [], deadline: null, dur: 0,
+    used: (prev && prev.used) || [], figs: (prev && prev.figs) || {}, deadline: null, dur: 0,
     opts: null, key: null, reveal: null, scores: {}, hist: [], note: null
   };
 }
@@ -225,7 +225,9 @@ const TRANS = {
   vote: (cur, a, subs) => toVote(cur, subs),
   reveal: (cur, a, subs) => toReveal(cur, subs),
   end: cur => cur && ['pick', 'write', 'vote', 'reveal'].indexOf(cur.phase) >= 0 ? Object.assign({}, cur, { phase: 'end', deadline: null, dur: 0, note: null }) : null,
-  lobby: cur => cur ? freshState(cur) : null
+  lobby: cur => cur ? freshState(cur) : null,
+  /* the figurine a player sits behind (the 3D table); any phase, one word of a few letters */
+  fig: (cur, a) => cur && /^[a-z]{2,12}$/.test(String(a)) && (cur.figs || {})[rt.me] !== a ? Object.assign({}, cur, { figs: Object.assign({}, cur.figs, { [rt.me]: a }) }) : null
 };
 const NEEDS_SUBS = { vote: 1, reveal: 1 };
 

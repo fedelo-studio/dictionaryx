@@ -368,87 +368,121 @@ export function Galaxy({ pulseKey, dim, calm }) {
   return <points geometry={geo} material={mat} frustumCulled={false} />
 }
 
-/* ---------- a player: a swarm of their colour ---------- */
-const SWARM_VS = /* glsl */ `
+/* ---------- a player: their figurine, in points of light ---------- */
+const FIGURE_VS = /* glsl */ `
 ${NOISE}
-attribute vec4 aDir;    // direction xyz, rand
-uniform float uTime, uPixel, uSize, uRadius, uAgitate, uColumn, uRing, uCalm;
+attribute vec3 aFig;    // the figurine's point
+attribute vec4 aRand;   // light, rand, phase, unused
+uniform float uTime, uPixel, uSize, uAgitate, uRing, uColumn, uCalm, uShow, uMorph;
 uniform vec3 uColor;
 varying vec3 vColor;
 varying float vAlpha;
 void main() {
-  float r = aDir.w;
-  // an orb: particles on orbits round the player
-  float spin = uTime * (0.6 + r * 1.2) * (1.0 - uCalm * 0.9);
-  vec3 d = aDir.xyz;
-  vec3 orb = vec3(d.x * cos(spin) - d.z * sin(spin), d.y, d.x * sin(spin) + d.z * cos(spin)) * uRadius * (0.55 + 0.45 * r);
-  orb += vec3(snoise(d * 2.0 + uTime * 1.6), snoise(d * 2.0 + 9.0 + uTime * 1.6), snoise(d * 2.0 + 21.0 + uTime * 1.6)) * uAgitate * 0.25;
-  // ready: the orb settles into a flat halo
-  vec3 ring = vec3(cos(spin + r * 6.28) , 0.0, sin(spin + r * 6.28)) * uRadius * 1.1;
-  vec3 pos = mix(orb, ring, uRing);
-  // scores: the swarm climbs into a column of light
-  float h = r * uColumn;
-  // standing on the seat, from the swarm's foot up
-  vec3 col = vec3(cos(spin * 2.0 + r * 40.0) * 0.16, h - 0.5, sin(spin * 2.0 + r * 40.0) * 0.16);
-  pos = mix(pos, col, step(0.001, uColumn) * clamp(uColumn * 4.0, 0.0, 1.0));
+  float r = aRand.y;
+  vec3 pos = aFig;
+  // writing: the figure shivers, its points lifted by a noise
+  pos += vec3(snoise(aFig * 3.0 + uTime * 1.8), snoise(aFig * 3.0 + 9.0 + uTime * 1.8), snoise(aFig * 3.0 + 21.0 + uTime * 1.8)) * uAgitate * 0.05;
+  // a change of figurine: the points scatter and gather again
+  pos += normalize(aFig + vec3(0.001)) * sin(3.14159 * uMorph) * (0.4 + r * 0.8) * (1.0 - uCalm);
+  // the scores: the figure stands on a column of light
+  pos.y += uColumn;
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = uSize * (0.6 + r * 0.9) * uPixel * (10.0 / -mv.z);
-  vColor = uColor * (0.7 + r * 0.6);
-  vAlpha = 0.9;
+  gl_PointSize = uSize * (0.7 + r * 0.6) * uPixel * (10.0 / -mv.z);
+  vColor = uColor * aRand.x;
+  vAlpha = 0.95 * uShow;
 }`
 
-export function Swarm({ color, agitate = 0, ready = 0, column = 0, me, calm }) {
-  const core = useRef()
-  const count = isPhone() ? 420 : 640
+const RING_VS = /* glsl */ `
+attribute vec4 aDir;    // angle, height, radius, rand
+uniform float uTime, uPixel, uSize, uRing, uColumn, uCalm, uShow;
+uniform vec3 uColor;
+varying vec3 vColor;
+varying float vAlpha;
+void main() {
+  float a = aDir.x + uTime * (0.4 + aDir.w * 0.5) * (1.0 - uCalm * 0.9);
+  // ready: a ring of light round the figurine's feet; the scores: a column under it
+  float rad = mix(0.62, 0.2, step(0.001, uColumn)) * (0.9 + aDir.z * 0.2);
+  vec3 pos = vec3(cos(a) * rad, aDir.y * uColumn, sin(a) * rad * 0.6);
+  vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = uSize * (0.6 + aDir.w * 0.8) * uPixel * (10.0 / -mv.z);
+  vColor = uColor;
+  vAlpha = max(uRing, clamp(uColumn * 3.0, 0.0, 1.0)) * 0.8 * uShow;
+}`
+
+/** A player's figurine. fig: from figures.js; scale: the height of the figure. */
+export function Figure({ fig, color, agitate = 0, ready = 0, column = 0, calm, height = 0.95 }) {
+  const count = fig.pts.length / 3
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
-    const dir = new Float32Array(count * 4)
-    for (let k = 0; k < count; k++) {
-      const v = new THREE.Vector3().randomDirection()
-      dir[k * 4] = v.x
-      dir[k * 4 + 1] = v.y
-      dir[k * 4 + 2] = v.z
-      dir[k * 4 + 3] = Math.random()
-    }
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
-    g.setAttribute('aDir', new THREE.BufferAttribute(dir, 4))
+    g.setAttribute('aFig', new THREE.BufferAttribute(new Float32Array(count * 3), 3))
+    const rand = new Float32Array(count * 4)
+    for (let k = 0; k < count; k++) { rand[k * 4 + 1] = Math.random(); rand[k * 4 + 2] = Math.random() }
+    g.setAttribute('aRand', new THREE.BufferAttribute(rand, 4))
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 20)
     return g
   }, [count])
-  const mat = useMemo(
-    () =>
-      pointMaterial(SWARM_VS, {
-        uTime: { value: Math.random() * 10 },
-        uPixel: { value: Math.min(window.devicePixelRatio || 1, 2) },
-        uSize: { value: isPhone() ? 3.2 : 2.8 },
-        uRadius: { value: 0.5 },
-        uAgitate: { value: 0 },
-        uColumn: { value: 0 },
-        uRing: { value: 0 },
-        uCalm: { value: calm ? 1 : 0 },
-        uColor: { value: new THREE.Color(color) },
-      }),
-    [],
-  )
-  useEffect(() => { mat.uniforms.uColor.value.set(color) }, [color])
-  useFrame((_, dt) => {
-    const u = mat.uniforms
-    u.uTime.value += dt
-    u.uAgitate.value = THREE.MathUtils.damp(u.uAgitate.value, agitate, 4, dt)
-    u.uRing.value = THREE.MathUtils.damp(u.uRing.value, ready, 3, dt)
-    u.uColumn.value = THREE.MathUtils.damp(u.uColumn.value, column, 2.2, dt)
-    // the core rides on top of the column
-    core.current.position.y = (u.uColumn.value - 0.5) * THREE.MathUtils.clamp(u.uColumn.value * 4, 0, 1)
+  const ring = useMemo(() => {
+    const n = 260
+    const g = new THREE.BufferGeometry()
+    const dir = new Float32Array(n * 4)
+    for (let k = 0; k < n; k++) { dir[k * 4] = Math.random() * Math.PI * 2; dir[k * 4 + 1] = Math.random(); dir[k * 4 + 2] = Math.random(); dir[k * 4 + 3] = Math.random() }
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
+    g.setAttribute('aDir', new THREE.BufferAttribute(dir, 4))
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 20)
+    return g
+  }, [])
+  const shared = () => ({
+    uTime: { value: Math.random() * 10 },
+    uPixel: { value: Math.min(window.devicePixelRatio || 1, 2) },
+    uAgitate: { value: 0 },
+    uRing: { value: 0 },
+    uColumn: { value: 0 },
+    uCalm: { value: calm ? 1 : 0 },
+    uShow: { value: 1 },
+    uMorph: { value: 1 },
+    uColor: { value: new THREE.Color(color) },
+  })
+  const mat = useMemo(() => pointMaterial(FIGURE_VS, { ...shared(), uSize: { value: isPhone() ? 2.6 : 3.1 } }), [])
+  const ringMat = useMemo(() => pointMaterial(RING_VS, { ...shared(), uSize: { value: isPhone() ? 2.4 : 2.1 } }), [])
+  // a new figurine: its points, sized to fit a seat, and the scatter that brings them
+  useEffect(() => {
+    const k = Math.min(height, 1.3 / Math.max(0.5, fig.length))
+    const p = geo.getAttribute('aFig')
+    const r = geo.getAttribute('aRand')
+    for (let i = 0; i < count; i++) {
+      p.array[i * 3] = fig.pts[i * 3] * k
+      p.array[i * 3 + 1] = fig.pts[i * 3 + 1] * k - 0.5
+      p.array[i * 3 + 2] = fig.pts[i * 3 + 2] * k
+      r.array[i * 4] = fig.light[i]
+    }
+    p.needsUpdate = true
+    r.needsUpdate = true
+    mat.uniforms.uMorph.value = 0
+  }, [fig, height])
+  useEffect(() => { mat.uniforms.uColor.value.set(color); ringMat.uniforms.uColor.value.set(color) }, [color])
+  const turn = useRef()
+  useFrame((st, dt) => {
+    const damp = THREE.MathUtils.damp
+    for (const m of [mat, ringMat]) {
+      const u = m.uniforms
+      u.uTime.value += dt
+      u.uAgitate.value = damp(u.uAgitate.value, agitate, 4, dt)
+      u.uRing.value = damp(u.uRing.value, ready, 3, dt)
+      u.uColumn.value = damp(u.uColumn.value, column, 2.2, dt)
+    }
+    mat.uniforms.uMorph.value = Math.min(1, mat.uniforms.uMorph.value + dt / 1.2)
+    // in a three-quarter profile, turning a little, as a figurine on a turntable
+    turn.current.rotation.y = -0.5 + (calm ? 0 : Math.sin(mat.uniforms.uTime.value * 0.35) * 0.3)
   })
   return (
     <group>
-      <points geometry={geo} material={mat} frustumCulled={false} />
-      {/* the core: white, or the studio's orange for you */}
-      <mesh ref={core}>
-        <sphereGeometry args={[me ? 0.07 : 0.05, 16, 16]} />
-        <meshBasicMaterial color={me ? '#ff4a1c' : '#ffffff'} toneMapped={false} />
-      </mesh>
+      <group ref={turn}>
+        <points geometry={geo} material={mat} frustumCulled={false} />
+      </group>
+      <points position={[0, -0.5, 0]} geometry={ring} material={ringMat} frustumCulled={false} />
     </group>
   )
 }

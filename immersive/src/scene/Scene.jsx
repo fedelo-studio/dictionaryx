@@ -5,7 +5,8 @@ import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard, Text, useCursor } from '@react-three/drei'
 import { E, statusOf } from '../engine.js'
-import { Burst, Galaxy, Swarm, WordCloud } from './particles.jsx'
+import { Burst, Figure, Galaxy, WordCloud } from './particles.jsx'
+import { figOf } from '../figures.js'
 
 export const C = {
   card: '#141414',
@@ -193,7 +194,7 @@ function seatLayout(n, roomOf, under, low) {
       const mid = room.under(room.toPx(0, 0, z)[0], top + band / 2, z) || new THREE.Vector3(0, 0.5, z)
       const ppw = Math.abs(room.toPx(0, mid.y, z)[1] - room.toPx(0, mid.y + 1, z)[1]) // pixels per unit there
       scale = Math.min(scale, band / rows / (SEAT_H * ppw))
-      const half = room.half(mid.y, z) - 0.75
+      const half = room.half(mid.y, z) - 0.95
       const span = k - 1 + (even ? 0.5 : 0)
       if (span > 0) gap = Math.min(gap, (2 * Math.max(0.3, half)) / span)
       return { k, z, ppw, half }
@@ -204,14 +205,15 @@ function seatLayout(n, roomOf, under, low) {
   let L = plan(1)
   if (n > 2 && L.scale < 0.82) {
     const two = plan(2)
-    if (two.scale > L.scale) L = two
+    // names side by side that would not fit: two rows, even a little smaller
+    if (two.scale > L.scale || L.gap / GAP < 0.8) L = two
   }
   const scale = THREE.MathUtils.clamp(L.scale, 0.5, 1)
   const pos = []
   const height = L.rowsOut.reduce((h, row) => h + SEAT_H * row.ppw * scale + 6, 0)
   let y = low ? Math.max(L.top, L.bottom - height) : L.top
   // the columns rise into the room above the back row, in seat units; on two rows, no higher than a row
-  const tall = THREE.MathUtils.clamp((y - L.top) / (L.rowsOut[0].ppw * scale) + 0.5, 0.6, L.rowsOut.length > 1 ? 1.0 : 2.4)
+  const tall = THREE.MathUtils.clamp((y - L.top) / (L.rowsOut[0].ppw * scale) - 0.1, 0.4, L.rowsOut.length > 1 ? 0.55 : 2.4)
   L.rowsOut.forEach((row, r) => {
     // rows packed from the top of the band, the front row in the gaps of the back one
     const cy = y + SEAT_UP * row.ppw * scale
@@ -235,7 +237,9 @@ function Seat({ u, pos, scale, label: labelW, tall, crowded, S, score, maxScore,
   const st = statusOf(u, S)
   const me = u === E.rt.me
   const online = E.data.online.has(u)
-  const color = isLead ? C.hot : E.avatarOf(u).color
+  // the shapes tell the players apart; the colour is the studio's: white, orange for you and for the lead
+  const color = me || isLead ? C.hot : online || showScore ? C.fg : '#4a4a46'
+  const fig = figOf(u)
   const column = showScore ? 0.3 + (maxScore ? score / maxScore : 0) * tall : 0
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime
@@ -247,14 +251,14 @@ function Seat({ u, pos, scale, label: labelW, tall, crowded, S, score, maxScore,
     shown.current = damp(shown.current, away ? 0 : 1, 4, dt)
     g.scale.setScalar(Math.max(0.001, shown.current * scale))
     group.current.visible = shown.current > 0.01
-    label.current.position.y = damp(label.current.position.y, showScore ? column - 0.05 : 0.78, 3, dt)
+    label.current.position.y = damp(label.current.position.y, showScore ? column + 0.62 : 0.78, 3, dt)
   })
   const line = showScore
     ? `${score} pt${score > 1 ? 's' : ''}${st && st.c === 'gain' ? '   ' + st.t : ''}`
     : st ? st.t : online ? 'en ligne' : 'absent'
   return (
     <group ref={group} position={pos}>
-      <Swarm color={online || showScore ? color : '#3a3a38'} agitate={st && st.c === 'typing' ? 1 : 0} ready={st && st.c === 'done' ? 1 : 0} column={column} me={me} calm={calm} />
+      <Figure fig={fig} color={color} agitate={st && st.c === 'typing' ? 1 : 0} ready={st && st.c === 'done' ? 1 : 0} column={column} calm={calm} />
       <Billboard ref={label} position={[0, 0.78, 0]}>
         <Text font={FONT.medium} fontSize={0.27} anchorX="center" anchorY="bottom" textAlign="center" color={C.fg} maxWidth={labelW}>
           {E.nameOf(u)}{me && !crowded ? ' (toi)' : ''}
