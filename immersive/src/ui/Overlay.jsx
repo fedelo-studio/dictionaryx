@@ -515,6 +515,7 @@ function Menu({ S, close }) {
         ) : (
           <ul className="menu">{items.map(([t, f]) => <li key={t}><button type="button" onClick={f}><span>{t}</span><Arrow /></button></li>)}</ul>
         )}
+        <a className="foot" href="https://fedelo.studio" target="_blank" rel="noopener"><Mark size={16} /><span>Un jeu fedelo.studio</span></a>
       </div>
     </>
   )

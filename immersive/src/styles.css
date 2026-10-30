@@ -164,6 +164,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--hot); outline-o
 .menu button:hover { color: var(--hot); }
 .rules { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 10px; font-size: 17px; }
 .rules li::marker { color: var(--hot); font-weight: 500; }
+/* the studio's signature, at the foot of the menu */
+.foot { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 15px; font-weight: 300; color: var(--fg-dim); text-decoration: none; transition: color .2s; }
+.foot:hover { color: var(--fg); }
+.foot svg { flex: none; }
 .toasts { position: fixed; left: var(--pad); right: var(--pad); top: calc(72px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
 .toast { padding: 10px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 15px; animation: rise .4s var(--ease) both; }
 @keyframes fade { from { opacity: 0; } }
